@@ -68,6 +68,8 @@ certificate lifecycle through the same registry.
   - Depends on: `RMI-KEYFORGE-017`, `RMI-KEYFORGE-018`
 - [ ] `RMI-KEYFORGE-020` CLI (`status`, `rotate`, `retire`, `destroy`, `backup ack`, `verify`)
   - Depends on: `RMI-KEYFORGE-018`
+- [ ] `RMI-KEYFORGE-029` Canary purpose and rotation drill: weekly full-lifecycle run on a key that holds no data, `keyforge verify` on demand, alert and status on failure or overdue
+  - Depends on: `RMI-KEYFORGE-014`, `RMI-KEYFORGE-016`
 
 ## Phase 5 — Hardening and v0.1.0
 

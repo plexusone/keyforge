@@ -237,6 +237,32 @@ Separate from scheduled rotation, and audited as such:
   re-encrypt the data under it (the host drives this through `Reencrypt`;
   keyforge reports the progress and the remaining references).
 
+## Rotation drill
+
+Real keys rotate on their policy (KEK yearly, data keys quarterly or by
+volume). A schedule that is that slow is also one that nobody exercises, so
+the mechanism is exercised on a key that holds nothing:
+
+- keyforge maintains a built-in **canary purpose**, enabled by default, that
+  runs the full lifecycle on a weekly schedule: create a version, activate
+  it, re-wrap, encrypt and decrypt across the old and new versions, roll back
+  to the previous version and forward again, retire after a short delay, and
+  destroy the retired version.
+- Every step is the code path real keys use, against the configured provider
+  and registry, so a provider credential that has expired or a job that stalls
+  surfaces in the canary within a week and not at the first real rotation.
+- A failed or overdue drill is an alert and appears in `status`; a successful
+  one is an audit event with its duration.
+- `keyforge verify` runs the same drill on demand and across every purpose's
+  read path (decrypt a sample of stored envelopes without returning data).
+- The drill's interval is configurable, and a deployment with a managed
+  provider that charges per key version may lengthen it.
+
+Real keys are not rotated weekly by default: more frequent rotation adds
+versions, re-wrap work and audit volume without a matching security gain, and
+for the local provider each rotation is another keyring that must be backed
+up. Policy lets a deployment shorten the interval for a purpose.
+
 ## Scheduling
 
 - A scheduler runs in the control-plane process. Policy is declared per
