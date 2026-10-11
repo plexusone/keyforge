@@ -1,5 +1,8 @@
 # keyforge: Technical Requirements
 
+**Initiative:** `INIT-KEYFORGE-001`
+**Repository:** `github.com/plexusone/keyforge`
+
 Implements the [PRD](PRD.md).
 
 ## Concepts

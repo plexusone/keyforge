@@ -3,6 +3,6 @@
 // rotation without re-encrypting stored data, and controlled retirement
 // and destruction.
 //
-// The design is in docs/specs. The package is a scaffold; the API is not
-// yet defined.
+// The design is in docs/specs/initiatives/INIT-KEYFORGE-001. The package is
+// a scaffold; the API is not yet defined.
 package keyforge

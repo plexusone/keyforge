@@ -5,7 +5,7 @@ encryption, automatic rotation without re-encrypting stored data, and
 controlled retirement and destruction.
 
 > **Status:** design phase. The API is not yet defined and nothing here is
-> ready for production use. See [docs/specs](docs/specs/PRD.md).
+> ready for production use. See the [product requirements](docs/specs/initiatives/INIT-KEYFORGE-001/PRD.md).
 
 ## What it does
 
@@ -35,9 +35,9 @@ controlled retirement and destruction.
 
 ## Documentation
 
-- [Product requirements](docs/specs/PRD.md)
-- [Technical requirements](docs/specs/TRD.md)
-- [Plan](docs/specs/PLAN.md) and [roadmap](docs/specs/ROADMAP.md)
+- [Product requirements](docs/specs/initiatives/INIT-KEYFORGE-001/PRD.md)
+- [Technical requirements](docs/specs/initiatives/INIT-KEYFORGE-001/TRD.md)
+- [Plan](docs/specs/initiatives/INIT-KEYFORGE-001/PLAN.md) and [roadmap](docs/specs/initiatives/INIT-KEYFORGE-001/ROADMAP.md)
 - [Security policy](SECURITY.md)
 
 ## License

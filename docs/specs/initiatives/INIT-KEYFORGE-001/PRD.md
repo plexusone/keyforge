@@ -1,5 +1,8 @@
 # keyforge: Product Requirements
 
+**Initiative:** `INIT-KEYFORGE-001`
+**Repository:** `github.com/plexusone/keyforge`
+
 ## Problem
 
 Applications that encrypt data end up with a private, ad hoc key mechanism

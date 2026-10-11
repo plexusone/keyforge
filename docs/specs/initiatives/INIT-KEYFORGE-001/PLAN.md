@@ -1,5 +1,8 @@
 # keyforge: Plan
 
+**Initiative:** `INIT-KEYFORGE-001`
+**Repository:** `github.com/plexusone/keyforge`
+
 Implements the [PRD](PRD.md) and [TRD](TRD.md). The [roadmap](ROADMAP.md)
 holds the work items and their status.
 

@@ -22,4 +22,4 @@ Until v1.0.0, only the latest release receives security fixes.
 keyforge is pre-1.0 and has not been externally audited. Do not describe a
 deployment as production-grade on its basis until an independent review is
 published here. The threat model and known limitations are in the technical
-requirements ([docs/specs/TRD.md](docs/specs/TRD.md)).
+requirements ([docs/specs/initiatives/INIT-KEYFORGE-001/TRD.md](docs/specs/initiatives/INIT-KEYFORGE-001/TRD.md)).
