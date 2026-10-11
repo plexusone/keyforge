@@ -318,6 +318,64 @@ registry contains ID 1 only.
   ML-DSA (`crypto/mldsa`) or a hybrid when the formats and relying parties
   that carry them support it.
 
+## Inventory and the crypto specification
+
+keyforge is the system of record for the cryptography the platform selects
+and enforces, and the one place to register the cryptography it relies on but
+does not control, so that the system's crypto specification has a single
+source.
+
+### Three kinds of fact
+
+| Kind | Examples | Authority | Verification state in the export |
+|---|---|---|---|
+| **Enforced** | Registry algorithms and profiles, purposes, key versions, providers, rotation policy and state, FIPS mode | keyforge | `verified`, with configuration and runtime evidence from keyforge |
+| **Declared** | Edge TLS at a CDN, service-to-service TLS, database TLS: the expectation (minimum version, suites, key exchange groups, certificate key strength) | The system that configures it; keyforge holds the expectation | `attested`, or `review-required` once its review date passes |
+| **Observed** | A scan's handshake results, a dependency analysis | The scanner | `discovered`, promoted to `verified` when it matches the expectation |
+
+### External boundaries
+
+An external boundary record holds an identifier, a kind (`tls-edge`,
+`tls-internal`, `tls-database`, `storage-at-rest`, and so on), the
+**expectation**, an owner, a pointer to where the real configuration lives
+(an IaC path, a cloud console resource, a vendor document), and a review
+date. keyforge does not enforce it. A declaration past its review date is
+exported as `review-required`, so stale assertions cannot be read as current
+fact.
+
+### Export
+
+- `keyforge spec export` (and the library function behind it) produces a
+  `systemspec-crypto` document: implementations (keyforge, the Go
+  cryptographic module with its version and FIPS mode, each provider),
+  algorithms from the registry, uses per purpose with their configuration
+  (rotation intervals, profile), claims with verification states, and
+  evidence pointing to keyforge configuration and the external boundary
+  records.
+- The export is derived and reproducible. It is never edited by hand, and
+  it contains key identifiers and versions at most, never key material.
+- Where the specification does not yet model a detail (key classes,
+  certificates, protocol detail are reserved in v0.1), the export uses the
+  objects it has and leaves the rest undocumented rather than inventing it.
+
+### Verification
+
+Verification is outside keyforge. A test application or scanner takes the
+exported specification and the registered expectations, observes the deployed
+system (TLS handshakes, certificate chains, key exchange groups including
+hybrid post-quantum ones), and attaches its results as evidence. A mismatch
+between an expectation and an observation is a finding. Results flow back as
+evidence on claims and do not edit the inventory.
+
+### What keyforge does not do here
+
+- It does not scan networks or services.
+- It does not replace the configuration of an external system; the
+  expectation points at it.
+- It does not assert that every service uses keyforge. Direct use of a
+  primitive for data or key protection elsewhere is found by source and
+  dependency analysis.
+
 ## Threat model
 
 | Asset | Threat | Mitigation |

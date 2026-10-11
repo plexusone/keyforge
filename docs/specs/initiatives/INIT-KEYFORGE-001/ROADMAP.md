@@ -83,3 +83,14 @@ certificate lifecycle through the same registry.
   - Depends on: `RMI-KEYFORGE-022`, `RMI-KEYFORGE-023`
 - [ ] `RMI-KEYFORGE-025` v0.1.0 release: changelog, release notes, signed tag after CI on all platforms
   - Depends on: `RMI-KEYFORGE-021`, `RMI-KEYFORGE-024`
+
+## Phase 6 — Inventory and crypto specification
+
+**Theme:** keyforge is the single system of record for the platform's cryptographic choices and generates the system's crypto specification for verification.
+
+- [ ] `RMI-KEYFORGE-026` Inventory model and store: external boundary records (kind, expectation, owner, source pointer, review date) with review-date expiry
+  - Depends on: `RMI-KEYFORGE-018`, `RMI-KEYFORGE-025`
+- [ ] `RMI-KEYFORGE-027` `systemspec-crypto` export: implementations, registry algorithms, uses per purpose, claims with verification states, and evidence, with no key material; `keyforge spec export`
+  - Depends on: `RMI-KEYFORGE-026`
+- [ ] `RMI-KEYFORGE-028` Profile and FIPS-mode reporting in the export, and a conformance check that the export validates against the specification's schema
+  - Depends on: `RMI-KEYFORGE-027`

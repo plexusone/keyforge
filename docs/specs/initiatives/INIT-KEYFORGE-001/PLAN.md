@@ -30,6 +30,7 @@ holds the work items and their status.
 | 3 | Rotation, policy and retirement | Automatic KEK and DEK rotation, resumable jobs, the guard, and the delay |
 | 4 | Control plane | Scheduler with leader lease, audit sink, status, the service and the CLI |
 | 5 | Hardening and v0.1.0 | SQL store, crash and fuzz tests, documentation, security review, release |
+| 6 | Inventory and crypto specification | External boundary inventory and export of the system's crypto specification for verification (after v0.1.0) |
 
 ## Dependencies and sequencing
 

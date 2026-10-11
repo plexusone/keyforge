@@ -84,6 +84,8 @@ running locally.
 | FR14 | Asymmetric KEKs used as hybrid encryption (later release) |
 | FR15 | Signing-key management with published overlap on rotation (later release) |
 | FR16 | An algorithm registry with exact names (mode and size), a `fips` and a `standard` profile fixed in code, per-purpose narrowing, and typed refusal of an algorithm outside the active profile |
+| FR17 | An inventory of the cryptography keyforge governs (algorithms, profiles, purposes, key versions, providers, rotation state), and of **external boundaries** (edge TLS, service-to-service TLS, database TLS) with an expectation, an owner, a source of truth, and a review date |
+| FR18 | Export of the inventory as a `systemspec-crypto` document, with enforced facts, declared external facts and their verification states kept distinct, containing no key material |
 
 ### Non-functional
 
