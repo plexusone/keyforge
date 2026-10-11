@@ -50,6 +50,10 @@ running locally.
   manager's job.
 - TLS certificate lifecycle in v1. Certificates and other key types may be
   added later through the same registry.
+- Building the verifier. Test applications and scanners that check a
+  deployed system against the exported crypto specification are a later,
+  separate effort; keyforge's part is to produce the specification and the
+  expectations they will consume.
 - Authenticating callers of the control plane. The control plane takes an
   authorizer from the host application.
 

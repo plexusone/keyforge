@@ -360,10 +360,12 @@ fact.
 
 ### Verification
 
-Verification is outside keyforge. A test application or scanner takes the
-exported specification and the registered expectations, observes the deployed
+Verification is outside keyforge, and the verifier itself is not part of this
+initiative: test applications and scanners will be built later, against the
+export format defined here. A test application or scanner will take the
+exported specification and the registered expectations, observe the deployed
 system (TLS handshakes, certificate chains, key exchange groups including
-hybrid post-quantum ones), and attaches its results as evidence. A mismatch
+hybrid post-quantum ones), and attach its results as evidence. A mismatch
 between an expectation and an observation is a finding. Results flow back as
 evidence on claims and do not edit the inventory.
 
