@@ -174,7 +174,32 @@ type Provider interface {
    in batches, recording a cursor. Each batch unwraps with the old version
    and wraps with the new one; it is idempotent.
 4. When no DEK record references the old version, it becomes eligible for
-   retirement.
+   retirement, subject to the retained-versions rule below.
+
+### Retained versions
+
+- **Policy keeps the last two versions.** `retain_versions` defaults to 2: the
+  active version (N) and the previous one (N-1) are never retired, even when
+  nothing references N-1. N-1 stays usable for rollback: if N turns out to be
+  bad (a provider fault, a wrong configuration), N-1 can be reactivated and
+  nothing needs recovering.
+- **Older versions (N-2 and below) become eligible for retirement only when
+  all of these hold:** no DEK record or tracked object references them; the
+  retirement delay has passed; no hold covers data they protect; and the
+  guard allows it. The count is a floor on retention, never a trigger to
+  delete.
+- **Re-wrap promptly.** The re-wrap job starts as soon as a new version is
+  active, so references to N-1 drain quickly and N-1 is held only as the
+  rollback margin.
+- **Data outside the registry is the limit.** An inline envelope, an export,
+  a snapshot or a backup is not re-wrapped by the job. A version that
+  protects such data stays until the host asserts, through the guard, that no
+  such data remains or accepts its loss, and the backups' retention sets how
+  long old versions must be kept to restore them.
+- **Signing keys add a pre-publish step** (later release): version N+1 is
+  published for verification before it signs anything, N signs, and N-1 stays
+  verify-only for at least the longest token lifetime plus the longest cache
+  time of a relying party's key set, and then is retired by the same rules.
 
 Stored application data is unchanged throughout. In inline mode there are no
 registry records to re-wrap: an old version stays `decrypt-only` until the

@@ -82,6 +82,7 @@ running locally.
 | FR8 | Retirement and destruction as separate steps with a delay, a caller-supplied guard that can refuse, and an audit event |
 | FR9 | Per-subject data keys, so destroying one key makes one subject's data unrecoverable everywhere it was copied |
 | FR10 | Emergency rotation: destroy a compromised version and re-encrypt, as a separate audited procedure |
+| FR10a | A retained-versions floor (default two: the active and previous versions) with rollback to the previous version; older versions retire only when unreferenced, past the delay, outside any hold, and allowed by the guard |
 | FR11 | Audit events for creation, rotation, wrap failures, administrative access, retirement and destruction, with no key material |
 | FR12 | Status reporting: key states, next rotation, overdue keys, keyring backup status, provider health |
 | FR13 | A CLI for status, rotation, retirement and backup acknowledgement, and an embeddable control-plane service |
