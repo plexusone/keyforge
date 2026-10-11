@@ -83,6 +83,7 @@ running locally.
 | FR13 | A CLI for status, rotation, retirement and backup acknowledgement, and an embeddable control-plane service |
 | FR14 | Asymmetric KEKs used as hybrid encryption (later release) |
 | FR15 | Signing-key management with published overlap on rotation (later release) |
+| FR16 | An algorithm registry with exact names (mode and size), a `fips` and a `standard` profile fixed in code, per-purpose narrowing, and typed refusal of an algorithm outside the active profile |
 
 ### Non-functional
 

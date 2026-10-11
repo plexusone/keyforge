@@ -28,6 +28,10 @@ If the code and the TRD disagree, resolve it in the TRD in the same change.
 - **The envelope format is frozen once data exists.** Any change to it needs
   a version bump, new known-answer vectors in `testdata`, and a fuzz run.
   Unknown versions and algorithms fail with typed errors.
+- **Algorithms come from the registry and are named exactly.** Never write a
+  bare "AES-256"; say "AES-256-GCM". Do not call a primitive for data or key
+  protection outside the registry, and do not add configuration that widens a
+  profile. The `fips` and `standard` sets are code.
 - **Default paths must run under `GODEBUG=fips140=only`.** Use
   `cipher.NewGCMWithRandomNonce`, never `NewGCM`, and keep non-approved
   algorithms behind an explicit option. Post-quantum algorithms come from the

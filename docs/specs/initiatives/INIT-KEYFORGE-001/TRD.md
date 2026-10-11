@@ -113,7 +113,7 @@ ciphertext || tag
   JSON.
 - **AAD:** the header bytes up to the nonce, followed by the caller context.
   Changing the purpose, key, mode or context makes decryption fail.
-- **Algorithm 1:** AES-256-GCM through `cipher.NewGCMWithRandomNonce`, the
+- **Algorithm 1 (registry ID 1):** AES-256-GCM through `cipher.NewGCMWithRandomNonce`, the
   only GCM constructor permitted under `fips140=only`. Its output begins with
   the 12-byte random nonce, which the format stores in the header's nonce
   field and restores on open. The DEK's `encryptions` counter is incremented
@@ -253,25 +253,70 @@ failures are metered.
   `verify` (round-trips a test value through every purpose). The CLI is a
   client of the library and the store, with no separate logic.
 
-## Cryptographic policy
+## Algorithms and profiles
 
-- **Standard library only.** Primitives come from the Go standard library
-  and, where it has no equivalent, `golang.org/x/crypto`. No third-party
-  implementation of a primitive or of a post-quantum algorithm is used.
-- **FIPS 140-3.** The default code paths use only algorithms the Go
-  cryptographic module approves (AES-GCM through `NewGCMWithRandomNonce`,
-  HKDF and HMAC with SHA-2, ECDSA, Ed25519, RSA-OAEP, ML-KEM) and run
-  under `GODEBUG=fips140=only`. Non-approved options (ChaCha20-Poly1305,
-  X25519) are never the default, live behind an explicit option, and are
-  refused in `only` mode. CI runs the conformance and property suites in
-  both the default and the FIPS-only configuration. `status` reports whether
-  the process runs in FIPS mode and which module version it built with.
-- **Post-quantum.** Symmetric wrapping needs no change. Asymmetric KEKs, when
-  added, are hybrid KEMs through `crypto/hpke` (`MLKEM768X25519` outside FIPS
-  mode, `MLKEM768P256` inside it). Signing keys move to ML-DSA
-  (`crypto/mldsa`) or a hybrid when the formats and relying parties that
-  carry them support it. The envelope's algorithm identifier makes each a
-  format addition and not a change to stored data.
+### Rules
+
+- **Everything goes through keyforge.** Every protection of stored data and
+  keys that keyforge's callers perform uses an algorithm from keyforge's
+  registry. Callers do not select or call primitives for that purpose.
+- **Algorithms are named exactly:** mode and size, always ("AES-256-GCM", never
+  "AES-256"). The registry's names are the names used in the envelope, in
+  configuration, in logs and in status.
+- **The floor is an authenticated mode.** AES-256-GCM is the minimum. No ECB,
+  CBC, CTR or unauthenticated construction is registered.
+- **Standard library first.** Primitives come from the Go standard library
+  and, where it has none, `golang.org/x/crypto`. No third-party primitive or
+  post-quantum implementation is used.
+- **The sets are code.** Registry entries and profile membership are
+  compiled in and reviewed. Configuration can narrow a profile and cannot add
+  an algorithm. Adding one is a release with an envelope identifier and
+  known-answer vectors.
+
+### Registry
+
+| ID | Algorithm | Use | `fips` | `standard` |
+|---|---|---|---|---|
+| 1 | AES-256-GCM (`cipher.NewGCMWithRandomNonce`) | Data encryption; DEK wrapping in the local provider | yes | yes |
+| 2 | ChaCha20-Poly1305 | Data encryption | no | planned |
+| 16 | HPKE, DHKEM P-256 / HKDF-SHA-256 / AES-256-GCM | Asymmetric KEK | planned | planned |
+| 17 | HPKE, MLKEM768P256 / HKDF-SHA-256 / AES-256-GCM | Hybrid post-quantum asymmetric KEK | planned | planned |
+| 18 | HPKE, MLKEM768X25519 / HKDF-SHA-256 / AES-256-GCM | Hybrid post-quantum asymmetric KEK | no | planned |
+| 32 | Ed25519 | Signing | planned | planned |
+| 33 | ECDSA P-256 / SHA-256 | Signing | planned | planned |
+| 34 | ML-DSA-65 | Signing | planned, needs a module version that includes it | planned |
+
+"Planned" entries are reserved identifiers, not yet implemented. The phase-1
+registry contains ID 1 only.
+
+### Profiles
+
+- `Profile` is `Standard` or `FIPS`. A client's profile defaults to `FIPS` when
+  the process runs in FIPS mode (`crypto/fips140.Enabled()`) and to
+  `Standard` otherwise. Configuration may deny algorithms in either profile
+  or select `FIPS` outside FIPS mode, which uses only the approved set
+  without module validation.
+- Each purpose declares an optional **pinned profile** and an
+  **allowed-algorithm list** that must be a subset of its profile. Startup
+  validates every configured purpose and fails fast on a violation.
+- **Writes** choose the first algorithm of the purpose's list that the active
+  profile permits. **Reads** follow the profile: an envelope that names an
+  algorithm outside it fails with `ErrAlgorithmNotPermitted`, which reports
+  the algorithm and the profile, and does not fall back. Migration is a
+  `Reencrypt` in a process whose profile permits the old algorithm.
+- `status` reports the profile, the module version and whether the process
+  is in FIPS mode.
+
+### FIPS 140-3 and post-quantum
+
+- The default paths run under `GODEBUG=fips140=only`. CI runs the
+  conformance, property and fuzz suites in both the default and the
+  FIPS-only configuration.
+- Symmetric wrapping needs no post-quantum change. Asymmetric KEKs, when
+  added, are hybrid KEMs through `crypto/hpke`, `MLKEM768X25519` in
+  the `standard` profile and `MLKEM768P256` in `fips`. Signing keys move to
+  ML-DSA (`crypto/mldsa`) or a hybrid when the formats and relying parties
+  that carry them support it.
 
 ## Threat model
 
