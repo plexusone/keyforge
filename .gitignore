@@ -1,0 +1,6 @@
+coverage.out
+*.test
+*.out
+site/
+.DS_Store
+IDEATION_CHAT*.md
