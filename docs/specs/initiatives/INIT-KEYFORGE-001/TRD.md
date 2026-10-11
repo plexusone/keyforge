@@ -263,6 +263,93 @@ versions, re-wrap work and audit volume without a matching security gain, and
 for the local provider each rotation is another keyring that must be backed
 up. Policy lets a deployment shorten the interval for a purpose.
 
+## Disaster-recovery drill
+
+The rotation drill proves the mechanism works. The DR drill proves the state
+can be recovered: that a keyring and registry restored from backup can still
+decrypt everything they are supposed to. It runs without a person, and every
+judgment that is not mechanical is made by an analyst agent that writes the
+report.
+
+### Mechanical part (the drill engine)
+
+1. **Provision an isolated environment** with no network path to production
+   and no write access to production state, through a host-supplied
+   `RestoreTarget`.
+2. **Fetch the latest backups** of the registry and, for the local provider,
+   the keyring, through a host-supplied `BackupSource`, and verify their
+   digests.
+3. **Check the recovery point.** Compare the restored keyring generation and
+   registry state with the acknowledged and current ones. A restore that
+   predates a rotation or a key version is a failure, not a warning.
+4. **Start keyforge in recovery mode** against the restored state, with the
+   same profile and provider configuration as production, and the root key
+   obtained the way an operator would during a real recovery (from the secret
+   manager, not from the production process).
+5. **Decrypt sentinels.** Keyforge writes a sentinel envelope per purpose
+   and key version, whose plaintext is a fixed, non-secret marker, and keeps
+   them with the registry. The drill decrypts every sentinel for every
+   retained version. A version that cannot decrypt its sentinel is a
+   critical failure.
+6. **Sample real data.** Through a host-supplied `Sampler`, the drill
+   decrypts a bounded sample of real envelopes per purpose, checking only
+   that authentication and decryption succeed. Plaintext is discarded and
+   never logged.
+7. **Measure** time to first successful decrypt (the recovery time), the age
+   of the backup and the generation gap (the recovery point), and the
+   duration of each step.
+8. **Run negative checks:** a deliberately stale keyring copy must be
+   detected, and an envelope under a destroyed version must fail with the
+   expected typed error, so the drill proves its own checks can fail.
+9. **Destroy the environment** and verify that no key material or restored
+   state remains.
+10. **Emit the result:** a JSON document of steps, outcomes, metrics, versions
+    and digests. It contains key identifiers and versions at most, never key
+    material or plaintext.
+
+Objective outcomes (each step passed or failed, whether the recovery time and
+point are within configured limits) are decided by the engine and are final.
+
+### Judgment part (the analyst and the report)
+
+Some conclusions are not mechanical: how serious a result is, whether a
+metric is trending toward a limit, what probably caused a failure, what to
+change first. These are made by an **analyst**, an agent supplied by the host
+through an `Analyst` interface. keyforge core has no dependency on any model
+or agent framework.
+
+- **Input:** the result document, the previous drills' results and reports,
+  and sanitized logs. **The analyst never receives key material, plaintext, or
+  access to the restored environment.**
+- **Output:** a DR report in Markdown and JSON, with: the objective verdict;
+  metrics and trends; each finding with severity, evidence and likely cause;
+  prioritized recommendations; the limits of the drill (what it did not
+  cover); and provenance (analyst identity, model, time, inputs by digest).
+- **Standing:** the analyst's conclusions are advisory and cannot change
+  policy, key state or the objective verdict. In the exported crypto
+  specification the drill's objective results are `verified` evidence and the
+  analyst's conclusions are `inferred` until a person attests them.
+- **Escalation:** a failed drill or a critical finding raises an alert
+  through the audit sink, whatever the report says.
+
+### Schedule and triggers
+
+The drill runs quarterly by default, and on demand (`keyforge drill`), and
+after a change to the provider, the backup configuration or the registry's
+location. A drill that is overdue is reported in `status` and alerts, like an
+overdue rotation. The report is stored with the audit trail and is evidence
+for the recovery claims in the crypto specification.
+
+### Interfaces the host supplies
+
+| Interface | Purpose |
+|---|---|
+| `BackupSource` | Fetch the latest registry and keyring backups and their digests |
+| `RestoreTarget` | Provision and destroy the isolated environment |
+| `Sampler` | Return a bounded sample of real envelopes per purpose |
+| `Analyst` | Turn the result document into the report |
+| `ReportSink` | Store the report and result with the audit trail |
+
 ## Scheduling
 
 - A scheduler runs in the control-plane process. Policy is declared per

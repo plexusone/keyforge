@@ -83,8 +83,12 @@ certificate lifecycle through the same registry.
   - Depends on: `RMI-KEYFORGE-020`
 - [ ] `RMI-KEYFORGE-024` Internal review of format and rotation; fix findings; record known limitations
   - Depends on: `RMI-KEYFORGE-022`, `RMI-KEYFORGE-023`
+- [ ] `RMI-KEYFORGE-030` DR drill engine: sentinels per purpose and version, restore into an isolated environment, recovery point and time measurement, negative checks, environment teardown, result document with no key material
+  - Depends on: `RMI-KEYFORGE-009`, `RMI-KEYFORGE-018`, `RMI-KEYFORGE-029`
+- [ ] `RMI-KEYFORGE-031` DR report: `Analyst` interface, report format (Markdown and JSON) with provenance and inferred-versus-verified standing, trend comparison with earlier drills, escalation of failed drills
+  - Depends on: `RMI-KEYFORGE-030`
 - [ ] `RMI-KEYFORGE-025` v0.1.0 release: changelog, release notes, signed tag after CI on all platforms
-  - Depends on: `RMI-KEYFORGE-021`, `RMI-KEYFORGE-024`
+  - Depends on: `RMI-KEYFORGE-021`, `RMI-KEYFORGE-024`, `RMI-KEYFORGE-030`
 
 ## Phase 6 — Inventory and crypto specification
 

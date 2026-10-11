@@ -84,6 +84,8 @@ running locally.
 | FR10 | Emergency rotation: destroy a compromised version and re-encrypt, as a separate audited procedure |
 | FR10a | A retained-versions floor (default two: the active and previous versions) with rollback to the previous version; older versions retire only when unreferenced, past the delay, outside any hold, and allowed by the guard |
 | FR10b | A built-in canary purpose that runs the full key lifecycle weekly on a key holding no data, with `keyforge verify` on demand and an alert when a drill fails or is overdue |
+| FR10c | A fully automated disaster-recovery drill that restores keyforge's state from backup into an isolated environment, proves every retained key version can decrypt, measures recovery time and recovery point, destroys the environment, and emits a machine-readable result containing no key material |
+| FR10d | A DR report written from the drill result by an analyst (an agent supplied by the host), covering the judgments that are not mechanical: severity, trends against earlier drills, likely causes and recommendations, with the analyst's conclusions marked as inferred and the objective results as verified |
 | FR11 | Audit events for creation, rotation, wrap failures, administrative access, retirement and destruction, with no key material |
 | FR12 | Status reporting: key states, next rotation, overdue keys, keyring backup status, provider health |
 | FR13 | A CLI for status, rotation, retirement and backup acknowledgement, and an embeddable control-plane service |
@@ -119,6 +121,12 @@ running locally.
    and reported before it can lose data.
 5. An external reviewer can reconstruct, from the format specification alone,
    how any ciphertext was produced.
+6. A disaster-recovery drill runs with no person involved, restores the
+   registry and keyring from backup in an isolated environment, decrypts a
+   sentinel for every retained key version, reports its recovery time and
+   recovery point against configured limits, and produces a report whose
+   conclusions are marked as inferred and whose objective results are marked
+   as verified.
 
 ## Out of scope for v0.1.0
 

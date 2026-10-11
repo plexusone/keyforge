@@ -37,6 +37,10 @@ If the code and the TRD disagree, resolve it in the TRD in the same change.
   algorithms behind an explicit option. Post-quantum algorithms come from the
   standard library (`crypto/mlkem`, `crypto/hpke`, `crypto/mldsa`), hybrid
   first, and never from a third-party package.
+- **Agents never see key material.** An analyst or any other agent that
+  works with drill results, logs or exports receives metadata only, with no
+  keys, plaintext or access to a restored environment, and its conclusions are
+  advisory and marked as inferred.
 - **Fail closed.** With no usable key, an operation fails; it never falls back
   to a weaker path.
 - **No network call per encrypt or decrypt.** The data path is in process.
