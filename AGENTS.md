@@ -28,6 +28,11 @@ If the code and the TRD disagree, resolve it in the TRD in the same change.
 - **The envelope format is frozen once data exists.** Any change to it needs
   a version bump, new known-answer vectors in `testdata`, and a fuzz run.
   Unknown versions and algorithms fail with typed errors.
+- **Default paths must run under `GODEBUG=fips140=only`.** Use
+  `cipher.NewGCMWithRandomNonce`, never `NewGCM`, and keep non-approved
+  algorithms behind an explicit option. Post-quantum algorithms come from the
+  standard library (`crypto/mlkem`, `crypto/hpke`, `crypto/mldsa`), hybrid
+  first, and never from a third-party package.
 - **Fail closed.** With no usable key, an operation fails; it never falls back
   to a weaker path.
 - **No network call per encrypt or decrypt.** The data path is in process.

@@ -113,10 +113,12 @@ ciphertext || tag
   JSON.
 - **AAD:** the header bytes up to the nonce, followed by the caller context.
   Changing the purpose, key, mode or context makes decryption fail.
-- **Algorithm 1:** AES-256-GCM with a random 96-bit nonce. The DEK's
-  `encryptions` counter is incremented per encryption, and a DEK reaching its
-  cap is rotated to a new epoch before the NIST random-nonce limit of 2³²
-  invocations. The default cap is 2³⁰.
+- **Algorithm 1:** AES-256-GCM through `cipher.NewGCMWithRandomNonce`, the
+  only GCM constructor permitted under `fips140=only`. Its output begins with
+  the 12-byte random nonce, which the format stores in the header's nonce
+  field and restores on open. The DEK's `encryptions` counter is incremented
+  per encryption, and a DEK reaching its cap is rotated to a new epoch before
+  the NIST random-nonce limit of 2³² invocations. The default cap is 2³⁰.
 - **Forward compatibility:** unknown `format` or `algorithm` values fail with
   a typed error rather than a guess. The parser is fuzzed.
 
@@ -250,6 +252,26 @@ failures are metered.
 - **CLI:** `keyforge status`, `rotate`, `retire`, `destroy`, `backup ack`,
   `verify` (round-trips a test value through every purpose). The CLI is a
   client of the library and the store, with no separate logic.
+
+## Cryptographic policy
+
+- **Standard library only.** Primitives come from the Go standard library
+  and, where it has no equivalent, `golang.org/x/crypto`. No third-party
+  implementation of a primitive or of a post-quantum algorithm is used.
+- **FIPS 140-3.** The default code paths use only algorithms the Go
+  cryptographic module approves (AES-GCM through `NewGCMWithRandomNonce`,
+  HKDF and HMAC with SHA-2, ECDSA, Ed25519, RSA-OAEP, ML-KEM) and run
+  under `GODEBUG=fips140=only`. Non-approved options (ChaCha20-Poly1305,
+  X25519) are never the default, live behind an explicit option, and are
+  refused in `only` mode. CI runs the conformance and property suites in
+  both the default and the FIPS-only configuration. `status` reports whether
+  the process runs in FIPS mode and which module version it built with.
+- **Post-quantum.** Symmetric wrapping needs no change. Asymmetric KEKs, when
+  added, are hybrid KEMs through `crypto/hpke` (`MLKEM768X25519` outside FIPS
+  mode, `MLKEM768P256` inside it). Signing keys move to ML-DSA
+  (`crypto/mldsa`) or a hybrid when the formats and relying parties that
+  carry them support it. The envelope's algorithm identifier makes each a
+  format addition and not a change to stored data.
 
 ## Threat model
 
