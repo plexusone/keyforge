@@ -32,9 +32,10 @@ If the code and the TRD disagree, resolve it in the TRD in the same change.
   bare "AES-256"; say "AES-256-GCM". Do not call a primitive for data or key
   protection outside the registry, and do not add configuration that widens a
   profile. The `fips` and `standard` sets are code.
-- **Default paths must run under `GODEBUG=fips140=only`.** Use
-  `cipher.NewGCMWithRandomNonce`, never `NewGCM`, and keep non-approved
-  algorithms behind an explicit option. Post-quantum algorithms come from the
+- **Keep the code valid under `GODEBUG=fips140=only`.** Use
+  `cipher.NewGCMWithRandomNonce`, never `NewGCM`. Non-approved algorithms are
+  not implemented in this initiative; when one is added it goes behind the
+  `standard` profile only. Post-quantum algorithms come from the
   standard library (`crypto/mlkem`, `crypto/hpke`, `crypto/mldsa`), hybrid
   first, and never from a third-party package.
 - **Agents never see key material.** An analyst or any other agent that

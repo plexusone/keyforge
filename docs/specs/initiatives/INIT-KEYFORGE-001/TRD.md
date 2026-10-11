@@ -416,16 +416,18 @@ failures are metered.
 | ID | Algorithm | Use | `fips` | `standard` |
 |---|---|---|---|---|
 | 1 | AES-256-GCM (`cipher.NewGCMWithRandomNonce`) | Data encryption; DEK wrapping in the local provider | yes | yes |
-| 2 | ChaCha20-Poly1305 | Data encryption | no | planned |
-| 16 | HPKE, DHKEM P-256 / HKDF-SHA-256 / AES-256-GCM | Asymmetric KEK | planned | planned |
-| 17 | HPKE, MLKEM768P256 / HKDF-SHA-256 / AES-256-GCM | Hybrid post-quantum asymmetric KEK | planned | planned |
-| 18 | HPKE, MLKEM768X25519 / HKDF-SHA-256 / AES-256-GCM | Hybrid post-quantum asymmetric KEK | no | planned |
-| 32 | Ed25519 | Signing | planned | planned |
-| 33 | ECDSA P-256 / SHA-256 | Signing | planned | planned |
-| 34 | ML-DSA-65 | Signing | planned, needs a module version that includes it | planned |
+| 2 | ChaCha20-Poly1305 | Data encryption | no | reserved |
+| 16 | HPKE, DHKEM P-256 / HKDF-SHA-256 / AES-256-GCM | Asymmetric KEK | reserved | reserved |
+| 17 | HPKE, MLKEM768P256 / HKDF-SHA-256 / AES-256-GCM | Hybrid post-quantum asymmetric KEK | reserved | reserved |
+| 18 | HPKE, MLKEM768X25519 / HKDF-SHA-256 / AES-256-GCM | Hybrid post-quantum asymmetric KEK | no | reserved |
+| 32 | Ed25519 | Signing | reserved | reserved |
+| 33 | ECDSA P-256 / SHA-256 | Signing | reserved | reserved |
+| 34 | ML-DSA-65 | Signing | reserved, needs a module version that includes it | reserved |
 
-"Planned" entries are reserved identifiers, not yet implemented. The phase-1
-registry contains ID 1 only.
+"Reserved" entries are identifiers set aside so the format does not change
+when they are added; none is implemented or in scope for this initiative. The
+registry contains ID 1 only, and the only algorithm in either profile is
+AES-256-GCM, which both profiles approve.
 
 ### Profiles
 
@@ -445,11 +447,18 @@ registry contains ID 1 only.
 - `status` reports the profile, the module version and whether the process
   is in FIPS mode.
 
-### FIPS 140-3 and post-quantum
+### Starting point, FIPS 140-3 and post-quantum
 
-- The default paths run under `GODEBUG=fips140=only`. CI runs the
-  conformance, property and fuzz suites in both the default and the
-  FIPS-only configuration.
+- **The selector is the deliverable; the non-approved algorithms are not.**
+  keyforge starts in the `standard` profile and does not require FIPS mode.
+  What this initiative builds is the generic algorithm selector, so that
+  adding the first non-approved algorithm, or requiring FIPS-only operation,
+  is a registry entry and a configuration change and not a redesign. No
+  non-approved algorithm is implemented or in scope.
+- **FIPS-clean by construction.** Because the one algorithm is approved
+  (AES-256-GCM through `NewGCMWithRandomNonce`), the code stays valid under
+  `GODEBUG=fips140=only`. A FIPS-only CI job is added when FIPS operation is
+  first required; it is not a gate for v0.1.0.
 - Symmetric wrapping needs no post-quantum change. Asymmetric KEKs, when
   added, are hybrid KEMs through `crypto/hpke`, `MLKEM768X25519` in
   the `standard` profile and `MLKEM768P256` in `fips`. Signing keys move to

@@ -16,11 +16,13 @@ certificate lifecycle through the same registry.
 **Theme:** The format is specified, vectored and fuzzed, and a client encrypts and decrypts over an in-memory registry and a test provider.
 
 - [ ] `RMI-KEYFORGE-001` Envelope format v1: header, reference and inline modes, text form, AAD binding, typed errors; known-answer vectors in `testdata`
+- [ ] `RMI-KEYFORGE-032` Algorithm registry and profile selector: exact names, `fips` and `standard` profiles fixed in code, per-purpose pinned profile and allowed list (narrow only), typed refusal outside the profile; registry holds AES-256-GCM only
+  - Depends on: `RMI-KEYFORGE-001`
 - [ ] `RMI-KEYFORGE-002` Envelope parser fuzzing and boundary tests (truncation, unknown format and algorithm, oversize fields)
   - Depends on: `RMI-KEYFORGE-001`
 - [ ] `RMI-KEYFORGE-003` `Provider` interface and provider conformance suite
 - [ ] `RMI-KEYFORGE-004` `Client`: `Encrypt`, `Decrypt`, `Reencrypt` with purposes, context binding, DEK cache with TTL and bounds, per-DEK encryption counter and cap
-  - Depends on: `RMI-KEYFORGE-001`, `RMI-KEYFORGE-003`
+  - Depends on: `RMI-KEYFORGE-001`, `RMI-KEYFORGE-003`, `RMI-KEYFORGE-032`
 - [ ] `RMI-KEYFORGE-005` Test provider and in-memory registry sufficient to exercise the client end to end
   - Depends on: `RMI-KEYFORGE-003`, `RMI-KEYFORGE-004`
 

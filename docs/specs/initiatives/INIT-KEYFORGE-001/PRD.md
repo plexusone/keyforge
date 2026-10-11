@@ -107,7 +107,7 @@ running locally.
 | NFR6 | Library-first: the library is the product; the CLI and service are thin adapters over it |
 | NFR7 | Works on a single host with SQLite or with PostgreSQL, without code changes |
 | NFR8 | Public-ready repository and history from the first commit |
-| NFR9 | The default paths run under `GODEBUG=fips140=only` and are tested there; post-quantum algorithms are adopted from the Go standard library, hybrid first |
+| NFR9 | Algorithm choice is a generic selector with `fips` and `standard` profiles; the first release runs in the `standard` profile with AES-256-GCM only, and non-approved algorithms are out of scope. Post-quantum algorithms are adopted from the Go standard library, hybrid first, when they are scoped |
 
 ## Success criteria
 
