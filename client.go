@@ -12,6 +12,7 @@ import (
 	"io"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -147,6 +148,11 @@ type Client struct {
 	usable  *lru[kekVersion, bool] // whether a KEK version may be unwrapped
 
 	entropyMu sync.Mutex
+
+	// purgeGen counts calls to Purge. An operation that began before a purge
+	// must not put what it fetched into the caches afterwards: it may be a key
+	// the purge was called to drop.
+	purgeGen atomic.Uint64
 }
 
 type kekVersion struct {
@@ -325,9 +331,14 @@ func (c *Client) cacheLookup(cache string, hit bool) {
 }
 
 // Purge drops every cached key and view. Use it when a key must stop being
-// usable at once, for example after destroying it; otherwise a cached key can
-// outlive its destruction by up to the cache TTL.
+// usable at once, for example after destroying it or shredding a subject;
+// otherwise a cached key can outlive its destruction by up to the cache TTL.
+// That holds for writes as well as reads: a process holding a cached key for a
+// shredded subject goes on writing under it, and nothing it writes can be read
+// by another process or after a restart. Operations already in flight when
+// Purge is called do not repopulate the caches.
 func (c *Client) Purge() {
+	c.purgeGen.Add(1)
 	c.handles.clear()
 	c.inline.clear()
 	c.current.clear()
@@ -431,15 +442,15 @@ func (c *Client) encrypt(ctx context.Context, purpose Purpose, subject string, p
 	capN, block := c.limits(cfg)
 
 	for range maxAdvanceAttempts {
-		h, err := c.currentHandle(ctx, purpose, subject, cfg)
+		h, rec, err := c.currentHandle(ctx, purpose, subject, cfg)
 		if err != nil {
 			return nil, err
 		}
-		if h.rec.State != DEKActive {
+		if rec.State != DEKActive {
 			// The current key was marked compromised or destroyed. Writing
-			// moves to a new epoch; the old key stays readable as policy
+			// moves to a new epoch; a compromised key stays readable as policy
 			// allows, so what it protects can be re-encrypted.
-			if _, err := c.advance(ctx, purpose, subject, cfg, h.rec.Epoch, "not_active"); err != nil {
+			if _, err := c.advance(ctx, purpose, subject, cfg, rec.Epoch, "not_active"); err != nil {
 				return nil, err
 			}
 			continue
@@ -508,6 +519,7 @@ func (h *dekHandle) take(ctx context.Context, store Store, capN, block uint64) (
 // key, so it is not for a hot path against a managed key service.
 func (c *Client) EncryptInline(ctx context.Context, purpose Purpose, plaintext, bound []byte) (e *Envelope, err error) {
 	defer c.measure("encrypt_inline", purpose, c.begin(), &err)
+	gen := c.purgeGen.Load()
 	cfg, err := c.purposeConfig(purpose)
 	if err != nil {
 		return nil, err
@@ -551,10 +563,12 @@ func (c *Client) EncryptInline(ctx context.Context, purpose Purpose, plaintext, 
 		return nil, err
 	}
 	// The same process reading its own object back needs no provider call.
-	c.inline.put(inlineDigest(kv.Ref.ID, kv.Version, wrapped), &dekHandle{
-		rec:  DEKRecord{Purpose: purpose, Algorithm: alg, KEKID: kv.Ref.ID, KEKVersion: kv.Version},
-		aead: aead,
-	})
+	if c.purgeGen.Load() == gen {
+		c.inline.put(inlineDigest(kv.Ref.ID, kv.Version, wrapped), &dekHandle{
+			rec:  DEKRecord{Purpose: purpose, Algorithm: alg, KEKID: kv.Ref.ID, KEKVersion: kv.Version},
+			aead: aead,
+		})
+	}
 	return e, nil
 }
 
@@ -606,12 +620,22 @@ func (c *Client) decryptReference(ctx context.Context, purpose Purpose, e *Envel
 	}
 	info := Info{Mode: envelope.ModeReference, Subject: h.rec.Subject, Epoch: h.rec.Epoch}
 	if cur, ok := c.currentView(ctx, purpose, h.rec.Subject); ok {
+		// Stale means a write now would not use this key: it has been
+		// superseded, or it is the current key but is no longer active (it was
+		// marked compromised), or it has outlived its age.
 		info.Stale = h.rec.Epoch < cur.Epoch
+		if cur.ID == h.rec.ID {
+			info.Stale = cur.State != DEKActive
+			if cfg, err := c.purposeConfig(purpose); err == nil && !cur.CreatedAt.IsZero() {
+				info.Stale = info.Stale || !c.clock.Now().Before(cur.CreatedAt.Add(c.ageLimit(cfg)))
+			}
+		}
 	}
 	return pt, info, nil
 }
 
 func (c *Client) decryptInline(ctx context.Context, purpose Purpose, e *Envelope, bound []byte) ([]byte, Info, error) {
+	gen := c.purgeGen.Load()
 	digest := inlineDigest(e.KEKID, e.KEKVersion, e.Wrapped)
 	h, ok := c.inline.get(digest)
 	c.cacheLookup("inline", ok)
@@ -637,7 +661,9 @@ func (c *Client) decryptInline(ctx context.Context, purpose Purpose, e *Envelope
 			return nil, Info{}, err
 		}
 		h = &dekHandle{rec: DEKRecord{Purpose: purpose, Algorithm: e.Algorithm, KEKID: e.KEKID, KEKVersion: e.KEKVersion}, aead: aead}
-		c.inline.put(digest, h)
+		if c.purgeGen.Load() == gen {
+			c.inline.put(digest, h)
+		}
 	}
 	pt, err := e.Open(h.aead, bound)
 	if err != nil {
@@ -664,13 +690,32 @@ func (c *Client) Reencrypt(ctx context.Context, purpose Purpose, e *Envelope, bo
 	if info.Mode == envelope.ModeInline {
 		return c.EncryptInline(ctx, purpose, pt, bound)
 	}
+	// The subject comes from the stored record, so it is checked against what
+	// the purpose is configured as now: a purpose whose per-subject setting has
+	// changed since the data was written must not get a key of the wrong kind.
+	cfg, err := c.purposeConfig(purpose)
+	if err != nil {
+		return nil, err
+	}
+	switch {
+	case cfg.PerSubject && info.Subject == "":
+		return nil, fmt.Errorf("%w: %q", ErrSubjectRequired, string(purpose))
+	case !cfg.PerSubject && info.Subject != "":
+		return nil, fmt.Errorf("%w: %q", ErrSubjectNotAllowed, string(purpose))
+	}
 	return c.encrypt(ctx, purpose, info.Subject, pt, bound)
 }
 
 // currentHandle returns the data key new writes use, creating the first epoch
 // if there is none. The current record is cached, so a write makes no registry
 // call until the cache entry expires or the key's block is spent.
-func (c *Client) currentHandle(ctx context.Context, purpose Purpose, subject string, cfg PurposeConfig) (*dekHandle, error) {
+//
+// It also returns the current record, which is what decides whether the key may
+// be written under: a cached handle carries the record it was unwrapped from,
+// which may be older. The handle is nil when the record is not active, because
+// there is nothing to write under and the caller moves to a new epoch.
+func (c *Client) currentHandle(ctx context.Context, purpose Purpose, subject string, cfg PurposeConfig) (*dekHandle, DEKRecord, error) {
+	gen := c.purgeGen.Load()
 	key := currentKey{purpose, subject}
 	rec, ok := c.current.get(key)
 	c.cacheLookup("current", ok)
@@ -680,21 +725,28 @@ func (c *Client) currentHandle(ctx context.Context, purpose Purpose, subject str
 		switch {
 		case errors.Is(err, ErrDEKNotFound):
 			if rec, err = c.advance(ctx, purpose, subject, cfg, 0, "first"); err != nil {
-				return nil, err
+				return nil, DEKRecord{}, err
 			}
 		case err != nil:
-			return nil, fmt.Errorf("%w: %w", ErrKeyUnavailable, err)
+			return nil, DEKRecord{}, fmt.Errorf("%w: %w", ErrKeyUnavailable, err)
 		default:
-			c.current.put(key, rec)
+			if c.purgeGen.Load() == gen {
+				c.current.put(key, rec)
+			}
 		}
 	}
-	return c.handleFor(ctx, rec)
+	if rec.State != DEKActive {
+		return nil, rec, nil
+	}
+	h, err := c.handleFor(ctx, rec)
+	return h, rec, err
 }
 
 // currentView returns the cached current record for a purpose and subject,
 // consulting the registry once when the cache has expired. It reports whether
 // a record is known; an outage yields false and never fails a read.
 func (c *Client) currentView(ctx context.Context, purpose Purpose, subject string) (DEKRecord, bool) {
+	gen := c.purgeGen.Load()
 	key := currentKey{purpose, subject}
 	if rec, ok := c.current.get(key); ok {
 		return rec, true
@@ -703,7 +755,9 @@ func (c *Client) currentView(ctx context.Context, purpose Purpose, subject strin
 	if err != nil {
 		return DEKRecord{}, false
 	}
-	c.current.put(key, rec)
+	if c.purgeGen.Load() == gen {
+		c.current.put(key, rec)
+	}
 	return rec, true
 }
 
@@ -711,6 +765,7 @@ func (c *Client) currentView(ctx context.Context, purpose Purpose, subject strin
 // caller saw, and returns the record that is current afterwards, which is
 // another replica's if it won the race.
 func (c *Client) advance(ctx context.Context, purpose Purpose, subject string, cfg PurposeConfig, from uint32, reason string) (DEKRecord, error) {
+	gen := c.purgeGen.Load()
 	kv, err := c.activeKEK(ctx, purpose)
 	if err != nil {
 		return DEKRecord{}, err
@@ -759,12 +814,16 @@ func (c *Client) advance(ctx context.Context, purpose Purpose, subject string, c
 		return DEKRecord{}, fmt.Errorf("%w: advancing the data key: %w", ErrKeyUnavailable, err)
 	}
 	if winner.ID == rec.ID {
-		c.handles.put(rec.ID, &dekHandle{rec: winner, aead: aead})
+		if c.purgeGen.Load() == gen {
+			c.handles.put(rec.ID, &dekHandle{rec: winner, aead: aead})
+		}
 		if c.metrics != nil {
 			c.metrics.Count(metrics.EpochAdvances, 1, metrics.L("purpose", c.purposeLabel(purpose)), metrics.L("reason", reason))
 		}
 	}
-	c.current.put(currentKey{purpose, subject}, winner)
+	if c.purgeGen.Load() == gen {
+		c.current.put(currentKey{purpose, subject}, winner)
+	}
 	return winner, nil
 }
 
@@ -797,6 +856,9 @@ type VerifyCheck struct {
 // no data key record for a subject that does not exist. The test value and its
 // context are random and are zeroed afterwards; nothing is returned but outcomes.
 func (c *Client) Verify(ctx context.Context, purposes ...Purpose) []VerifyResult {
+	// Start from cold: a warm cache would answer for a key version the registry
+	// has since marked unusable.
+	c.Purge()
 	if len(purposes) == 0 {
 		for p := range c.purposes {
 			purposes = append(purposes, p)
@@ -897,6 +959,7 @@ func (c *Client) AdvanceEpoch(ctx context.Context, purpose Purpose, subject stri
 // handleFor returns the usable handle for a record, unwrapping its key through
 // the provider only when it is not cached.
 func (c *Client) handleFor(ctx context.Context, rec DEKRecord) (*dekHandle, error) {
+	gen := c.purgeGen.Load()
 	h, ok := c.handles.get(rec.ID)
 	c.cacheLookup("dek", ok)
 	if ok {
@@ -926,7 +989,9 @@ func (c *Client) handleFor(ctx context.Context, rec DEKRecord) (*dekHandle, erro
 		return nil, err
 	}
 	h = &dekHandle{rec: rec, aead: aead}
-	c.handles.put(rec.ID, h)
+	if c.purgeGen.Load() == gen {
+		c.handles.put(rec.ID, h)
+	}
 	return h, nil
 }
 
@@ -948,6 +1013,7 @@ func (c *Client) handleByID(ctx context.Context, id envelope.ID) (*dekHandle, er
 }
 
 func (c *Client) activeKEK(ctx context.Context, purpose Purpose) (KEKVersion, error) {
+	gen := c.purgeGen.Load()
 	if kv, ok := c.active.get(purpose); ok {
 		return kv, nil
 	}
@@ -955,11 +1021,14 @@ func (c *Client) activeKEK(ctx context.Context, purpose Purpose) (KEKVersion, er
 	if err != nil {
 		return KEKVersion{}, fmt.Errorf("%w: active key-encryption key for %q: %w", ErrKeyUnavailable, string(purpose), err)
 	}
-	c.active.put(purpose, kv)
+	if c.purgeGen.Load() == gen {
+		c.active.put(purpose, kv)
+	}
 	return kv, nil
 }
 
 func (c *Client) kekRef(ctx context.Context, id envelope.ID) (provider.KeyRef, error) {
+	gen := c.purgeGen.Load()
 	if ref, ok := c.keks.get(id); ok {
 		return ref, nil
 	}
@@ -967,7 +1036,9 @@ func (c *Client) kekRef(ctx context.Context, id envelope.ID) (provider.KeyRef, e
 	if err != nil {
 		return provider.KeyRef{}, fmt.Errorf("%w: key-encryption key %s: %w", ErrKeyUnavailable, id, err)
 	}
-	c.keks.put(id, ref)
+	if c.purgeGen.Load() == gen {
+		c.keks.put(id, ref)
+	}
 	return ref, nil
 }
 
@@ -976,6 +1047,7 @@ func (c *Client) kekRef(ctx context.Context, id envelope.ID) (provider.KeyRef, e
 // material. The answer is cached, so it costs a registry call only when a key
 // is first unwrapped.
 func (c *Client) requireUsable(ctx context.Context, id envelope.ID, version uint32) error {
+	gen := c.purgeGen.Load()
 	k := kekVersion{id, version}
 	ok, cached := c.usable.get(k)
 	if !cached {
@@ -984,7 +1056,9 @@ func (c *Client) requireUsable(ctx context.Context, id envelope.ID, version uint
 		if err != nil {
 			return fmt.Errorf("%w: state of key-encryption key %s version %d: %w", ErrKeyUnavailable, id, version, err)
 		}
-		c.usable.put(k, ok)
+		if c.purgeGen.Load() == gen {
+			c.usable.put(k, ok)
+		}
 	}
 	if !ok {
 		return fmt.Errorf("%w: key-encryption key %s version %d is retired, destroyed or not yet active", ErrKeyUnusable, id, version)
