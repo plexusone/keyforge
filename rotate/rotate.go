@@ -20,6 +20,7 @@ import (
 	"github.com/plexusone/keyforge/algorithm"
 	"github.com/plexusone/keyforge/audit"
 	"github.com/plexusone/keyforge/envelope"
+	"github.com/plexusone/keyforge/guard"
 	"github.com/plexusone/keyforge/policy"
 	"github.com/plexusone/keyforge/provider"
 	"github.com/plexusone/keyforge/registry"
@@ -68,6 +69,10 @@ type Options struct {
 	Clock keyforge.Clock
 	// Audit receives lifecycle events. The default discards them.
 	Audit audit.Sink
+	// Guard is consulted before a version is retired and again before it is
+	// destroyed. With none configured nothing is retired or destroyed: the
+	// absence of a veto is not consent.
+	Guard guard.Guard
 	// Entropy supplies sentinel keys and event identifiers. The default is
 	// crypto/rand.
 	Entropy io.Reader
@@ -82,6 +87,7 @@ type Rotator struct {
 	backups   map[string]Backup
 	clock     keyforge.Clock
 	audit     audit.Sink
+	guard     guard.Guard
 	entropy   io.Reader
 }
 
@@ -109,7 +115,7 @@ func New(opts Options) (*Rotator, error) {
 	}
 	r := &Rotator{
 		store: opts.Store, providers: providers, policy: opts.Policy, backups: opts.Backups,
-		clock: opts.Clock, audit: opts.Audit, entropy: opts.Entropy,
+		clock: opts.Clock, audit: opts.Audit, guard: opts.Guard, entropy: opts.Entropy,
 	}
 	if r.clock == nil {
 		r.clock = systemClock{}

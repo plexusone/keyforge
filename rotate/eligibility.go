@@ -18,6 +18,8 @@ type Eligibility struct {
 	// References is how many data keys in the registry are still wrapped under
 	// the version.
 	References int
+	// InFloor is true when the retained-versions floor holds the version.
+	InFloor bool
 	// Reasons lists what stops retirement, in words that name no key material.
 	Reasons []string
 }
@@ -77,6 +79,7 @@ func (r *Rotator) Eligibility(ctx context.Context, kekID envelope.ID, version ui
 		}
 		slices.SortFunc(live, func(a, b uint32) int { return int(b) - int(a) }) //nolint:gosec // G115: orders a short list of version numbers
 		if rank := slices.Index(live, version); rank >= 0 && rank < keep {
+			out.InFloor = true
 			out.Reasons = append(out.Reasons, fmt.Sprintf("the version is within the retained-versions floor of %d", keep))
 		}
 	}
