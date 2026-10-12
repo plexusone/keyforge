@@ -85,6 +85,7 @@ type Scheduler struct {
 	failures map[string]int       // consecutive failures per job
 	seen     map[string]bool      // finished runs already accounted for
 	started  map[string]time.Time // when this process started a run
+	last     TickResult           // the most recent tick's result
 }
 
 type systemClock struct{}
@@ -199,6 +200,7 @@ func (s *Scheduler) Tick(ctx context.Context) (TickResult, error) {
 		}
 	}
 	s.report(res)
+	s.last = res
 	return res, nil
 }
 
@@ -218,6 +220,19 @@ func (s *Scheduler) report(res TickResult) {
 	}
 	s.metrics.Gauge(metrics.JobsWaiting, float64(res.Waiting))
 	s.metrics.Gauge(metrics.JobsInFlight, float64(res.InFlight))
+}
+
+// Last returns the result of the most recent tick, or the zero value before the
+// first. It is what a status report shows of the scheduler: the work that is
+// overdue, in flight, waiting or failed.
+func (s *Scheduler) Last() TickResult {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	r := s.last
+	r.Started = slices.Clone(r.Started)
+	r.Overdue = slices.Clone(r.Overdue)
+	r.Failed = slices.Clone(r.Failed)
+	return r
 }
 
 // evaluate lists the work that is due from the registry's current state.
