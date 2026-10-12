@@ -365,7 +365,9 @@ report.
 6. **Sample real data.** Through a host-supplied `Sampler`, the drill
    decrypts a bounded sample of real envelopes per purpose, checking only
    that authentication and decryption succeed. Plaintext is discarded and
-   never logged.
+   never logged. The `Sampler` is optional: without one, the step is recorded
+   as not run and appears among the drill's limits in the result and the
+   report.
 7. **Measure** time to first successful decrypt (the recovery time), the age
    of the backup and the generation gap (the recovery point), and the
    duration of each step.
@@ -417,9 +419,14 @@ for the recovery claims in the crypto specification.
 |---|---|
 | `BackupSource` | Fetch the latest registry and keyring backups and their digests |
 | `RestoreTarget` | Provision and destroy the isolated environment |
-| `Sampler` | Return a bounded sample of real envelopes per purpose |
+| `Sampler` | Return a bounded sample of real envelopes per purpose (optional) |
 | `Analyst` | Turn the result document into the report |
 | `ReportSink` | Store the report and result with the audit trail |
+
+All five interfaces are defined in keyforge, because the drill engine calls
+them; hosts implement them. keyforge ships local-filesystem implementations
+of `BackupSource`, `RestoreTarget` and `ReportSink`, so the engine is tested
+end to end and a single-host deployment can drill without writing any.
 
 ## Scheduling
 
@@ -459,7 +466,8 @@ failures are metered.
   `Authorizer` (`Authorize(ctx, action, purpose) error`). Mounting and
   authentication are the host's.
 - **CLI:** `keyforge status`, `rotate`, `retire`, `destroy`, `backup ack`,
-  `verify` (round-trips a test value through every purpose). The CLI is a
+  `verify` (round-trips a test value through every purpose), and, with the
+  drills, `drill` (runs the DR drill on demand). The CLI is a
   client of the library and the store, with no separate logic.
 
 ## Algorithms and profiles

@@ -39,10 +39,11 @@ holds the work items and their status.
 - Phase 3 depends on the registry state machine from phase 2.
 - Phase 4's scheduler depends on phase 3's jobs; the SQL store in phase 5
   depends on the store conformance suite from phase 2.
-- systemforge integration (guard, audit sink, catalog granularity, and the
-  drill's `Sampler`, which reads sample envelopes from the encrypted columns
-  of registered entities) follows v0.1.0 and is tracked in systemforge. The
-  drill's `Sampler` interface is specified there, with the integration.
+- systemforge integration (guard, audit sink, catalog granularity, and a
+  `Sampler` implementation that reads sample envelopes from the encrypted
+  columns of registered entities) follows v0.1.0 and is tracked in
+  systemforge. The `Sampler` interface is defined in keyforge, which calls
+  it, and is optional, so the drill runs before the integration exists.
 
 ## Risks
 
