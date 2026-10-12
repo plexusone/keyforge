@@ -1,6 +1,7 @@
 package local
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"slices"
@@ -264,5 +265,41 @@ func TestGenerationIncreasesWithEveryChange(t *testing.T) {
 	}
 	if p.Generation() != 4 {
 		t.Fatalf("a read changed the generation to %d", p.Generation())
+	}
+}
+
+// A keyring replaced by an older copy while the provider is running must not
+// be written on top of: that would give the stale content a new generation and
+// pass it through the rollback check at Open.
+func TestOlderKeyringPutInPlaceWhileRunningIsRefused(t *testing.T) {
+	opts := newOpts(t, 3)
+	p := mustCreate(t, opts)
+	old, err := os.ReadFile(opts.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := p.CreateKey(bg, provider.KeySpec{Purpose: "orders", Algorithm: algorithm.AES256GCM})
+	if err != nil {
+		t.Fatal(err)
+	}
+	//nolint:gosec // G703: the path is inside this test's own temporary directory
+	if err := os.WriteFile(opts.Path, old, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := p.Rotate(bg, ref); !errors.Is(err, ErrKeyringRolledBack) {
+		t.Fatalf("Rotate over an older keyring = %v, want ErrKeyringRolledBack", err)
+	}
+	if _, err := p.CreateKey(bg, provider.KeySpec{Purpose: "orders", Algorithm: algorithm.AES256GCM}); !errors.Is(err, ErrKeyringRolledBack) {
+		t.Fatalf("CreateKey over an older keyring = %v, want ErrKeyringRolledBack", err)
+	}
+	// The file is still the older copy: nothing was written on top of it.
+	now, err := os.ReadFile(opts.Path)
+	if err != nil || !bytes.Equal(now, old) {
+		t.Fatalf("the keyring file changed: %v", err)
+	}
+	// And it is still refused when opened, rather than laundered.
+	if _, err := Open(bg, opts); !errors.Is(err, ErrKeyringRolledBack) {
+		t.Fatalf("Open = %v, want ErrKeyringRolledBack", err)
 	}
 }

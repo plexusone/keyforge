@@ -298,6 +298,14 @@ func (p *Provider) mutate(ctx context.Context, fn func(st *state) error) error {
 	if err != nil {
 		return err
 	}
+	if gen < p.gen {
+		// An older copy was put in place while this provider was running.
+		// Writing on top of it would give stale content a new generation and
+		// launder it past the rollback check at Open, and could reuse a
+		// version number with different key material.
+		st.wipe()
+		return &RollbackError{Found: gen, Highest: p.gen}
+	}
 	if err := fn(st); err != nil {
 		st.wipe()
 		return err
@@ -480,7 +488,8 @@ func (p *Provider) version(ref provider.KeyRef, ver uint32) (*keyState, *version
 	k, v, err := lookup()
 	if errors.Is(err, provider.ErrKeyNotFound) || errors.Is(err, provider.ErrVersionNotFound) {
 		// Another process may have created it, or destroyed it since.
-		if st, gen, rerr := p.read(); rerr == nil && gen != p.gen {
+		// A generation lower than the one held is a restored copy, not news.
+		if st, gen, rerr := p.read(); rerr == nil && gen > p.gen {
 			p.st.wipe()
 			p.st, p.gen = st, gen
 			return lookup()
