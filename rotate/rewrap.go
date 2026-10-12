@@ -182,3 +182,60 @@ func (r *Rotator) Rewrap(ctx context.Context, kekID envelope.ID, from uint32, op
 	}
 	return res, audErr
 }
+
+// RewrapAllResult reports a drain of every version of a KEK that still holds
+// data keys.
+type RewrapAllResult struct {
+	// Versions is each version that was drained and how it went.
+	Versions map[uint32]RewrapResult
+	// Done is true when no readable version other than the active one is left
+	// holding a data key.
+	Done bool
+}
+
+// RewrapAll moves every data key off every readable version of a KEK that is
+// not the active one. It is [Rotator.Rewrap] for each such version, and it is
+// self-contained: it needs only the KEK, so a scheduled job can run it without
+// being told which version to drain.
+//
+// Compromised versions are left to the emergency procedure, which a person
+// starts, and a KEK with no active version is not drained at all.
+func (r *Rotator) RewrapAll(ctx context.Context, kekID envelope.ID, opts RewrapOptions) (RewrapAllResult, error) {
+	versions, err := r.store.ListVersions(ctx, kekID)
+	if err != nil {
+		return RewrapAllResult{}, err
+	}
+	out := RewrapAllResult{Versions: map[uint32]RewrapResult{}, Done: true}
+	var hasActive bool
+	for _, v := range versions {
+		hasActive = hasActive || v.State == registry.VersionActive
+	}
+	if !hasActive {
+		return out, fmt.Errorf("%w: KEK %s", keyforge.ErrNoActiveKEK, kekID)
+	}
+	var audErr error
+	for _, v := range versions {
+		switch v.State {
+		case registry.VersionDecryptOnly, registry.VersionRetireRequested:
+		default:
+			continue
+		}
+		n, err := r.store.CountDEKs(ctx, kekID, v.Version)
+		if err != nil {
+			return out, err
+		}
+		if n == 0 {
+			continue
+		}
+		res, err := r.Rewrap(ctx, kekID, v.Version, opts)
+		if errors.Is(err, audit.ErrNotRecorded) {
+			audErr, err = err, nil
+		}
+		if err != nil {
+			return out, err
+		}
+		out.Versions[v.Version] = res
+		out.Done = out.Done && res.Done
+	}
+	return out, audErr
+}
