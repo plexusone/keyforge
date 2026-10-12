@@ -83,6 +83,12 @@ type Options struct {
 	// Root supplies the root key that protects the keyring. It must not be a
 	// file in Dir. Required.
 	Root local.RootKeySource
+	// AcceptRollback opens a keyring that is older than one this host has
+	// seen, which is what restoring from backup produces. Without it, Open
+	// fails with [local.ErrKeyringRolledBack] naming both generations, so a
+	// stale copy is never used by mistake. Set it only after confirming that
+	// the restore was intended.
+	AcceptRollback bool
 	// Purposes lists the purposes to manage. Each gets a KEK on first start.
 	// Required.
 	Purposes map[keyforge.Purpose]PurposeOptions
@@ -176,7 +182,7 @@ func open(ctx context.Context, o Options, reg *sqlstore.Store) (*System, error) 
 // missing keyring beside a registry that holds keys is an error, not a first
 // start.
 func openKeyring(ctx context.Context, o Options, reg *sqlstore.Store) (*local.Provider, error) {
-	lo := local.Options{Path: filepath.Join(o.Dir, KeyringFile), Root: o.Root}
+	lo := local.Options{Path: filepath.Join(o.Dir, KeyringFile), Root: o.Root, AcceptRollback: o.AcceptRollback}
 	kr, err := local.Open(ctx, lo)
 	switch {
 	case err == nil:

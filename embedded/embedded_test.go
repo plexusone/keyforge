@@ -232,3 +232,41 @@ func TestOptionsAreValidated(t *testing.T) {
 		})
 	}
 }
+
+func TestRestoredOlderKeyringNeedsAcceptance(t *testing.T) {
+	dir := t.TempDir()
+	o := options(dir)
+	keyring := filepath.Join(dir, embedded.KeyringFile)
+
+	s, err := embedded.Open(bg, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := os.ReadFile(keyring)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A rotation advances the keyring's generation past the copy taken above.
+	if _, err := s.Rotator.RotateKEK(bg, purpose); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	//nolint:gosec // G703: the path is inside this test's own temporary directory
+	if err := os.WriteFile(keyring, old, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := embedded.Open(bg, o); !errors.Is(err, local.ErrKeyringRolledBack) {
+		t.Fatalf("Open with an older keyring = %v, want ErrKeyringRolledBack", err)
+	}
+	o.AcceptRollback = true
+	s2, err := embedded.Open(bg, o)
+	if err != nil {
+		t.Fatalf("Open with the rollback accepted: %v", err)
+	}
+	if err := s2.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
