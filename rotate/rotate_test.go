@@ -1144,3 +1144,48 @@ func contains(as []audit.Action, a audit.Action) bool {
 	}
 	return false
 }
+
+func TestRewrapAllDrainsEveryNonActiveVersion(t *testing.T) {
+	w := newWorld(t, setup{})
+	c := w.client(small)
+	all := w.seed(c, 6) // three data keys under version 1
+	if _, err := w.rot.RotateKEK(bg, purpose); err != nil {
+		t.Fatal(err)
+	}
+	w.clock.Advance(10 * time.Minute)
+	c2 := w.client(small)
+	all = append(all, w.seed(c2, 4)...) // two more, under version 2
+	if _, err := w.rot.RotateKEK(bg, purpose); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := w.rot.RewrapAll(bg, w.kek.ID, rotate.RewrapOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !res.Done || len(res.Versions) != 2 || res.Versions[1].Rewrapped != 3 || res.Versions[2].Rewrapped != 2 {
+		t.Fatalf("RewrapAll = %+v", res)
+	}
+	for v := uint32(1); v <= 2; v++ {
+		if n, _ := w.store.CountDEKs(bg, w.kek.ID, v); n != 0 {
+			t.Errorf("%d data keys still under version %d", n, v)
+		}
+	}
+	w.mustDecrypt(w.client(small), all)
+
+	// Nothing left: a second run does nothing and is done.
+	again, err := w.rot.RewrapAll(bg, w.kek.ID, rotate.RewrapOptions{})
+	if err != nil || !again.Done || len(again.Versions) != 0 {
+		t.Fatalf("a repeat RewrapAll = %+v, %v", again, err)
+	}
+}
+
+func TestRewrapAllNeedsAnActiveVersion(t *testing.T) {
+	w := newWorld(t, setup{})
+	if err := w.store.TransitionVersion(bg, w.kek.ID, 1, registry.VersionCompromised, registry.TransitionOptions{At: w.clock.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.rot.RewrapAll(bg, w.kek.ID, rotate.RewrapOptions{}); !errors.Is(err, keyforge.ErrNoActiveKEK) {
+		t.Fatalf("RewrapAll with no active version = %v, want ErrNoActiveKEK", err)
+	}
+}
