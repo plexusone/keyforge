@@ -318,10 +318,30 @@ type KeySpec struct {
   **root key** obtained from a `RootKeySource` (an environment variable, a
   file, or a secret manager such as omnivault). The root key never touches
   disk beside the keyring.
-- The keyring header carries a non-secret **root-key ID** assigned when the
-  root key is created. Opening a keyring with a different root key fails with
-  `ErrWrongRootKey` before decryption is attempted, so a wrong key is not
-  reported as a corrupted file.
+- **The root key is 32 random bytes**, supplied as base64 or hex by an
+  environment variable, a file, or code. keyforge does not stretch a
+  passphrase: a passphrase is not a key. A file source must not be readable by
+  group or others, and a root key file in the keyring's directory is refused.
+- The keyring is sealed with AES-256-GCM under a key derived from the root key
+  with HKDF-SHA-256 (the standard library's `crypto/hkdf`). A **root-key ID**
+  is derived from the same root key under a different context string, so it
+  identifies the key without revealing it or the encryption key. It is stored
+  in the file's header, which is authenticated but not encrypted. Opening a
+  keyring with a different root key fails with `ErrWrongRootKey` before
+  decryption is attempted, so a wrong key is not reported as a corrupted file.
+- **File format** (frozen once a keyring exists): a fixed 32-byte header,
+  authenticated as the additional data, then the sealed payload.
+
+  ```text
+  magic "KFKR" | format u8 | reserved u8 | algorithm u8 | reserved u8
+  root key ID : 16 bytes
+  generation  : u64, big-endian
+  sealed      : nonce (12) || ciphertext || tag
+  ```
+
+  The payload is JSON: for each KEK its identifier, purpose, algorithm, latest
+  version, and each version's key material or a destroyed marker. Reserved
+  bytes must be zero, and anything unrecognized is `ErrCorruptKeyring`.
 - **Root-key rotation** re-encrypts the keyring under a new root key in one
   atomic write and records the new root-key ID. The keyring is small, so this
   is a rewrite, not a job.
@@ -331,9 +351,16 @@ type KeySpec struct {
   offline copy. The DR drill obtains the root key through a separately
   configured recovery `RootKeySource`, so the escrow path is tested rather
   than assumed.
-- Writes are atomic: write to a temporary file, fsync, rename, fsync the
-  directory, and take an advisory lock so concurrent processes do not
-  interleave.
+- Writes are atomic: take an advisory lock, re-read the file, apply the
+  change, write a temporary file in the same directory, fsync it, rename it
+  over the keyring, and fsync the directory (a no-op on Windows, where the
+  rename is itself atomic). A change is made against a fresh read under the
+  lock, so concurrent processes do not interleave and none loses another's
+  version. A crash leaves the previous keyring or the new one; temporary files
+  left behind are removed by the next writer.
+- The file is created with mode 0600, and a keyring that group or others can
+  read is refused. Opening a provider zeroes the root key after deriving from
+  it, and `Close` zeroes the key material the provider holds.
 - A monotonically increasing **keyring generation** is stored in the file.
   `keyforge backup ack` records the generation of the copy the operator has
   safely stored; `status` reports a keyring whose generation is ahead of the
