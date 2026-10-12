@@ -60,12 +60,14 @@ The core module depends only on the standard library and
 
 ### Key states
 
-A key version moves through these states and never backwards:
+A key version moves through these states. A transition that removes key
+material from use (into `retired` or `destroyed`) is one-way; the only other
+backward moves are the two listed in the transition table.
 
 ```text
-pending ─► active ─► decrypt-only ─► retire-requested ─► retired ─► destroyed
-                          │                                  ▲
-                          └────────── compromised ───────────┘
+pending ─► active ⇄ decrypt-only ⇄ retire-requested ─► retired ─► destroyed
+             │            │               │                ▲
+             └────────────┴───────────────┴─► compromised ─┘
 ```
 
 | State | Encrypt | Decrypt | Notes |
@@ -77,6 +79,30 @@ pending ─► active ─► decrypt-only ─► retire-requested ─► retired
 | `retired` | no | no | Key material removed from use, recoverable only from backups |
 | `destroyed` | no | no | Key material destroyed at the provider |
 | `compromised` | no | policy | Marked by an operator; leads to the emergency procedure |
+
+### Transitions
+
+These are the only permitted transitions. The store conformance suite checks
+every one and checks that every pair not listed is refused with a typed error.
+
+| From | To | Trigger | Audit event |
+|---|---|---|---|
+| `pending` | `active` | Activation; the previous `active` version moves to `decrypt-only` in the same transaction | `key.activated` |
+| `active` | `decrypt-only` | Activation of another version, or rollback | `key.activated`, `key.rolled_back` |
+| `decrypt-only` | `active` | **Rollback**: only the most recent `decrypt-only` version, and the current `active` version moves to `decrypt-only` in the same transaction | `key.rolled_back` |
+| `decrypt-only` | `retire-requested` | Retirement requested; the delay starts | `key.retire_requested` |
+| `retire-requested` | `decrypt-only` | **Cancellation**: the guard denies, or an operator cancels | `guard.denied`, `key.retire_cancelled` |
+| `retire-requested` | `retired` | Delay passed and the guard allows | `key.retired` |
+| `retired` | `destroyed` | The guard allows; the provider destroys the material | `key.destroyed` |
+| `active`, `decrypt-only`, `retire-requested` | `compromised` | Operator marks it | `key.compromised` |
+| `compromised` | `retired` | Emergency procedure, after re-wrap | `key.retired` |
+
+- Exactly one version per KEK is `active` after every transaction.
+- A rollback demotes the newer version to `decrypt-only`; it does not
+  compromise it, so data written under it stays readable.
+- Nothing leaves `retired`, `destroyed` or `compromised` except as listed.
+  Material retired by mistake is recovered only through the restore
+  procedure, never by a state change.
 
 ### Registry records
 
@@ -179,10 +205,12 @@ type Provider interface {
 ### Retained versions
 
 - **Policy keeps the last two versions.** `retain_versions` defaults to 2: the
-  active version (N) and the previous one (N-1) are never retired, even when
-  nothing references N-1. N-1 stays usable for rollback: if N turns out to be
-  bad (a provider fault, a wrong configuration), N-1 can be reactivated and
-  nothing needs recovering.
+  active version and the most recent `decrypt-only` version are never
+  retired, even when nothing references the latter. It stays usable for
+  rollback: if the active version turns out to be bad (a provider fault, a
+  wrong configuration), the previous one is reactivated (see
+  [Transitions](#transitions)) and nothing needs recovering. Counting by state
+  rather than by number keeps the rule well defined after a rollback.
 - **Older versions (N-2 and below) become eligible for retirement only when
   all of these hold:** no DEK record or tracked object references them; the
   retirement delay has passed; no hold covers data they protect; and the
@@ -221,8 +249,9 @@ No pass is required for correctness.
 - Before `retired` and again before `destroyed`, the **guard** is consulted.
   It may allow, deny with a reason, or answer `Pending` (an approval is
   outstanding). Only an allow advances the state.
-- A denied or pending request leaves the key `decrypt-only`, usable, with an
-  audit event.
+- A denied request returns the key to `decrypt-only`, usable, with an audit
+  event. A pending answer leaves it `retire-requested`, still decryptable,
+  and the guard is asked again on the next scheduler pass.
 - Destruction is irreversible at the provider; for providers with a
   deletion window it is scheduled and cancellable inside it.
 
@@ -375,8 +404,8 @@ for the recovery claims in the crypto specification.
 
 Events carry an ID, time, actor (supplied by the host), action, purpose,
 key and version, outcome, and a reason, and never key material. Actions
-include `key.created`, `key.rotated`, `key.activated`, `key.retire_requested`,
-`key.retired`, `key.destroyed`, `key.compromised`, `wrap.failed`,
+include `key.created`, `key.rotated`, `key.activated`, `key.rolled_back`,
+`key.retire_requested`, `key.retire_cancelled`, `key.retired`, `key.destroyed`, `key.compromised`, `wrap.failed`,
 `admin.read`, `guard.denied`, `guard.pending`, `job.failed`, `backup.stale`.
 Ordinary encrypt and decrypt are not logged individually; their rates and
 failures are metered.
