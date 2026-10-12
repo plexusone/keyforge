@@ -413,6 +413,9 @@ type Store interface {
 	// CountDEKs returns how many data keys are wrapped under a KEK version, in
 	// any state but destroyed.
 	CountDEKs(ctx context.Context, kekID envelope.ID, version uint32) (int, error)
+	// CountDEKStates returns how many data keys a purpose has in each state, for
+	// reporting, without listing them.
+	CountDEKStates(ctx context.Context, purpose keyforge.Purpose) (map[keyforge.DEKState]int, error)
 	// RewrapDEK moves a data key to a new KEK version and wrapped value. It is
 	// a compare-and-set on the version the key is wrapped under now and is
 	// idempotent: repeating a completed rewrap succeeds, so a resumed job is

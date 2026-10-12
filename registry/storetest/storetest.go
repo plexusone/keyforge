@@ -82,6 +82,7 @@ func Cases() []Case {
 		{"MarkDEK", caseMarkDEK},
 		{"ActivationConcurrent", caseActivationConcurrent},
 		{"RecordsAreCopies", caseCopies},
+		{"CountDEKStates", caseCountStates},
 		{"WrappedUnderKeepsEveryVersion", caseWrapHistory},
 		{"ShredSubject", caseShredSubject},
 		{"ShredCompletesOnlyWhenEveryVersionIsDestroyed", caseShredCompletion},
@@ -1318,5 +1319,32 @@ func caseShredNothing(t TB, s registry.Store) {
 	_, err = s.AdvanceDEK(bg, "orders", "never-seen", 0, dekRecord(k, 1, "orders", "never-seen", 1))
 	if !errors.Is(err, keyforge.ErrSubjectShredded) {
 		t.Errorf("a key for a subject shredded before it had any = %v, want ErrSubjectShredded", err)
+	}
+}
+
+func caseCountStates(t TB, s registry.Store) {
+	t.Helper()
+	k := kekWithActive(t, s, "orders")
+	other := kekWithActive(t, s, "payments")
+
+	first := advance(t, s, dekRecord(k, 1, "orders", "", 1), 0)
+	advance(t, s, dekRecord(k, 1, "orders", "", 2), 1) // first becomes decrypt-only
+	advance(t, s, dekRecord(k, 1, "orders", "a", 1), 0)
+	advance(t, s, dekRecord(k, 1, "orders", "b", 1), 0)
+	advance(t, s, dekRecord(other, 1, "payments", "", 1), 0)
+	if err := s.MarkDEK(bg, first.ID, keyforge.DEKCompromised); err != nil {
+		t.Fatalf("MarkDEK: %v", err)
+	}
+
+	got, err := s.CountDEKStates(bg, "orders")
+	if err != nil {
+		t.Fatalf("CountDEKStates: %v", err)
+	}
+	want := map[keyforge.DEKState]int{keyforge.DEKActive: 3, keyforge.DEKCompromised: 1}
+	if len(got) != len(want) || got[keyforge.DEKActive] != 3 || got[keyforge.DEKCompromised] != 1 {
+		t.Errorf("CountDEKStates(orders) = %v, want %v", got, want)
+	}
+	if got, err := s.CountDEKStates(bg, "nothing"); err != nil || len(got) != 0 {
+		t.Errorf("CountDEKStates for a purpose with no keys = %v, %v", got, err)
 	}
 }

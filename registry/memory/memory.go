@@ -524,6 +524,22 @@ func (s *Store) CountDEKs(ctx context.Context, kekID envelope.ID, version uint32
 	return s.countLocked(kekID, version), nil
 }
 
+// CountDEKStates implements [registry.Store].
+func (s *Store) CountDEKStates(ctx context.Context, purpose keyforge.Purpose) (map[keyforge.DEKState]int, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := map[keyforge.DEKState]int{}
+	for _, d := range s.deks {
+		if d.Purpose == purpose {
+			out[d.State]++
+		}
+	}
+	return out, nil
+}
+
 // RewrapDEK implements [registry.Store].
 func (s *Store) RewrapDEK(ctx context.Context, r registry.Rewrap) error {
 	if err := ctx.Err(); err != nil {
