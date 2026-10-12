@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/plexusone/keyforge"
 	"github.com/plexusone/keyforge/algorithm"
 	"github.com/plexusone/keyforge/envelope"
 	"github.com/plexusone/keyforge/provider"
 	providermemory "github.com/plexusone/keyforge/provider/memory"
+	"github.com/plexusone/keyforge/registry"
 	registrymemory "github.com/plexusone/keyforge/registry/memory"
 )
 
@@ -40,10 +42,7 @@ func newStack(t *testing.T, mk func() provider.Provider) *stack {
 		t.Fatal(err)
 	}
 	s.kek = kek
-	if err := s.reg.PutKEK(kek); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.reg.SetActiveKEK(testPurpose, keyforge.KEKVersion{Ref: kek, Version: 1}); err != nil {
+	if err := s.reg.Bootstrap(bg, testPurpose, kek, 1, time.Unix(1_700_000_000, 0)); err != nil {
 		t.Fatal(err)
 	}
 	s.newCl = func(opts ...func(*keyforge.Options)) *keyforge.Client {
@@ -64,6 +63,15 @@ func newStack(t *testing.T, mk func() provider.Provider) *stack {
 	return s
 }
 
+func (s *stack) deks(t *testing.T) []keyforge.DEKRecord {
+	t.Helper()
+	recs, err := s.reg.ListDEKs(bg, registry.DEKFilter{Limit: registry.MaxPageSize})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return recs
+}
+
 // rotateKEK adds a KEK version at the provider and makes it active, which is
 // what the control plane's rotation will do.
 func (s *stack) rotateKEK(t *testing.T) uint32 {
@@ -72,7 +80,13 @@ func (s *stack) rotateKEK(t *testing.T) uint32 {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.reg.SetActiveKEK(testPurpose, keyforge.KEKVersion{Ref: s.kek, Version: v}); err != nil {
+	at := time.Unix(1_700_000_100, 0)
+	rec := registry.VersionRecord{KEKID: s.kek.ID, Version: v, State: registry.VersionPending, CreatedAt: at}
+	if err := s.reg.AddVersion(bg, rec); err != nil {
+		t.Fatal(err)
+	}
+	opts := registry.TransitionOptions{At: at}
+	if err := s.reg.TransitionVersion(bg, s.kek.ID, v, registry.VersionActive, opts); err != nil {
 		t.Fatal(err)
 	}
 	return v
@@ -121,13 +135,13 @@ func TestEndToEndKEKRotationLeavesStoredDataAlone(t *testing.T) {
 				}
 			}
 			var sawNew bool
-			for _, rec := range s.reg.DEKs() {
+			for _, rec := range s.deks(t) {
 				if rec.KEKVersion == v2 {
 					sawNew = true
 				}
 			}
 			if !sawNew {
-				t.Fatalf("no data key was wrapped under KEK version %d; records: %+v", v2, s.reg.DEKs())
+				t.Fatalf("no data key was wrapped under KEK version %d; records: %+v", v2, s.deks(t))
 			}
 		})
 	}

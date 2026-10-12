@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/plexusone/keyforge"
 	"github.com/plexusone/keyforge/algorithm"
@@ -26,10 +27,7 @@ func Example() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if err := reg.PutKEK(kek); err != nil {
-		log.Fatal(err)
-	}
-	if err := reg.SetActiveKEK("session-secrets", keyforge.KEKVersion{Ref: kek, Version: 1}); err != nil {
+	if err := reg.Bootstrap(ctx, "session-secrets", kek, 1, time.Now()); err != nil {
 		log.Fatal(err)
 	}
 
