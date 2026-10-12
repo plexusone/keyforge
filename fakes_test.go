@@ -210,6 +210,7 @@ type memStore struct {
 	calls    map[string]int
 	failWith error
 	unusable map[kekVer]bool
+	shredded map[curKey]bool
 }
 
 type kekVer struct {
@@ -321,6 +322,9 @@ func (s *memStore) AdvanceDEK(_ context.Context, p keyforge.Purpose, subject str
 		return keyforge.DEKRecord{}, err
 	}
 	key := curKey{p, subject}
+	if s.shredded[key] {
+		return keyforge.DEKRecord{}, keyforge.ErrSubjectShredded
+	}
 	var epoch uint32
 	if id, ok := s.current[key]; ok {
 		epoch = s.deks[id].Epoch

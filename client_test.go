@@ -785,3 +785,116 @@ func TestDefaultMaximumAgeIsNinetyDays(t *testing.T) {
 		t.Fatalf("did not roll at 90 days: %v", err)
 	}
 }
+
+// ---- per-subject keys ----
+
+func perSubject(e *env) {
+	e.opts.Purposes[testPurpose] = keyforge.PurposeConfig{PerSubject: true}
+}
+
+func TestPerSubjectKeysAreIsolated(t *testing.T) {
+	en := newEnv(t, perSubject, func(e *env) { e.opts.EncryptionCap, e.opts.ReserveBlock = 2, 2 })
+	c := en.client()
+
+	a1, err := c.EncryptFor(bg, testPurpose, "alice", []byte("a-one"), []byte("c"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b1, err := c.EncryptFor(bg, testPurpose, "bob", []byte("b-one"), []byte("c"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a1.DEKID == b1.DEKID {
+		t.Fatal("two subjects share a data key")
+	}
+	// Alice's key rolls on its own cap without touching Bob's.
+	for range 4 {
+		if _, err := c.EncryptFor(bg, testPurpose, "alice", []byte("more"), nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b2, err := c.EncryptFor(bg, testPurpose, "bob", []byte("b-two"), []byte("c"))
+	if err != nil || b2.DEKID != b1.DEKID {
+		t.Fatalf("Bob's key changed because of Alice's volume: %v", err)
+	}
+	if got := en.store.deks[a1.DEKID].Subject; got != "alice" {
+		t.Fatalf("subject on the record = %q", got)
+	}
+
+	// Decrypt reports whose key it was, and Reencrypt keeps the subject.
+	pt, info, err := c.Decrypt(bg, testPurpose, a1, []byte("c"))
+	if err != nil || string(pt) != "a-one" || info.Subject != "alice" || !info.Stale {
+		t.Fatalf("Decrypt = %q, %+v, %v", pt, info, err)
+	}
+	renewed, err := c.Reencrypt(bg, testPurpose, a1, []byte("c"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := en.store.deks[renewed.DEKID].Subject; got != "alice" {
+		t.Fatalf("Reencrypt moved the data to subject %q", got)
+	}
+}
+
+func TestSubjectRules(t *testing.T) {
+	en := newEnv(t, perSubject)
+	c := en.client()
+	if _, err := c.Encrypt(bg, testPurpose, []byte("x"), nil); !is(err, keyforge.ErrSubjectRequired) {
+		t.Errorf("Encrypt on a per-subject purpose = %v, want ErrSubjectRequired", err)
+	}
+
+	plain := newEnv(t)
+	pc := plain.client()
+	if _, err := pc.EncryptFor(bg, testPurpose, "alice", []byte("x"), nil); !is(err, keyforge.ErrSubjectNotAllowed) {
+		t.Errorf("EncryptFor on a purpose that is not per-subject = %v, want ErrSubjectNotAllowed", err)
+	}
+
+	for name, subject := range map[string]string{
+		"empty":           "",
+		"too long":        strings.Repeat("a", keyforge.MaxSubjectLen+1),
+		"control":         "al\x00ice",
+		"newline":         "al\nice",
+		"invalid utf-8":   "\xff\xfe",
+		"unicode control": "al\u0085ice",
+	} {
+		if _, err := c.EncryptFor(bg, testPurpose, subject, []byte("x"), nil); !is(err, keyforge.ErrInvalidSubject) {
+			t.Errorf("%s: EncryptFor = %v, want ErrInvalidSubject", name, err)
+		}
+	}
+	for _, subject := range []string{"alice", "user:42", "テナント-7", strings.Repeat("a", keyforge.MaxSubjectLen)} {
+		if _, err := c.EncryptFor(bg, testPurpose, subject, []byte("x"), nil); err != nil {
+			t.Errorf("subject %q refused: %v", subject, err)
+		}
+	}
+}
+
+func TestShreddedSubjectCannotBeWrittenAgain(t *testing.T) {
+	en := newEnv(t, perSubject)
+	c := en.client()
+	e, err := c.EncryptFor(bg, testPurpose, "alice", []byte("x"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	en.store.shredded = map[curKey]bool{{testPurpose, "alice"}: true}
+	en.store.mu.Lock()
+	rec := en.store.deks[e.DEKID]
+	rec.State = keyforge.DEKDestroyed
+	rec.Wrapped = nil
+	en.store.deks[e.DEKID] = rec
+	delete(en.store.current, curKey{testPurpose, "alice"})
+	en.store.mu.Unlock()
+	c.Purge()
+
+	if _, err := c.EncryptFor(bg, testPurpose, "alice", []byte("again"), nil); !is(err, keyforge.ErrSubjectShredded) {
+		t.Fatalf("EncryptFor a shredded subject = %v, want ErrSubjectShredded", err)
+	}
+	if is(err, keyforge.ErrKeyUnavailable) {
+		t.Fatal("a shredded subject is reported as an outage")
+	}
+	if _, _, err := c.Decrypt(bg, testPurpose, e, nil); !is(err, keyforge.ErrKeyUnusable) {
+		t.Fatalf("Decrypt of a shredded subject's data = %v, want ErrKeyUnusable", err)
+	}
+	// Other subjects are unaffected.
+	if _, err := c.EncryptFor(bg, testPurpose, "bob", []byte("x"), nil); err != nil {
+		t.Fatalf("an unrelated subject: %v", err)
+	}
+}

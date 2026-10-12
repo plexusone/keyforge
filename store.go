@@ -77,4 +77,17 @@ var (
 	ErrKEKNotFound = errors.New("keyforge: key-encryption key not found")
 	// ErrNoActiveKEK is returned by a Store for a purpose with no active KEK.
 	ErrNoActiveKEK = errors.New("keyforge: no active key-encryption key")
+	// ErrSubjectShredded is returned when a subject has been shredded and a
+	// new key would be created for it. A shredded subject stays shredded: an
+	// erasure that quietly re-enrolled the subject would not be one.
+	ErrSubjectShredded = errors.New("keyforge: the subject has been shredded")
+	// ErrSubjectRequired is returned when a purpose is per-subject and no
+	// subject was given.
+	ErrSubjectRequired = errors.New("keyforge: this purpose is per-subject and needs a subject")
+	// ErrSubjectNotAllowed is returned when a subject is given for a purpose
+	// that is not per-subject.
+	ErrSubjectNotAllowed = errors.New("keyforge: this purpose is not per-subject")
+	// ErrInvalidSubject is returned for a subject that is empty, too long, not
+	// valid UTF-8, or contains control characters.
+	ErrInvalidSubject = errors.New("keyforge: invalid subject")
 )

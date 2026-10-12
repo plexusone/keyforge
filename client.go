@@ -11,6 +11,8 @@ import (
 	"io"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/plexusone/keyforge/algorithm"
 	"github.com/plexusone/keyforge/envelope"
@@ -63,6 +65,12 @@ type PurposeConfig struct {
 	// MaxAge overrides [Options.MaxAge] for this purpose. Zero uses the
 	// client's.
 	MaxAge time.Duration
+	// PerSubject gives each subject (a user, a tenant) data key epochs of its
+	// own, so that destroying one subject's keys makes that subject's data
+	// unrecoverable wherever it was copied. A per-subject purpose is written
+	// with [Client.EncryptFor]; any other purpose is written with
+	// [Client.Encrypt].
+	PerSubject bool
 }
 
 // Options configures a [Client].
@@ -287,8 +295,60 @@ func (c *Client) limits(cfg PurposeConfig) (capN, block uint64) {
 // Encrypt encrypts plaintext under purpose in reference mode: the envelope
 // names the data key, and rotating the KEK does not touch it. context is bound
 // into the ciphertext, so it cannot be moved to another record.
+//
+// A per-subject purpose is written with [Client.EncryptFor]; Encrypt on one is
+// [ErrSubjectRequired].
 func (c *Client) Encrypt(ctx context.Context, purpose Purpose, plaintext, context []byte) (*Envelope, error) {
+	cfg, err := c.purposeConfig(purpose)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.PerSubject {
+		return nil, fmt.Errorf("%w: %q", ErrSubjectRequired, string(purpose))
+	}
 	return c.encrypt(ctx, purpose, "", plaintext, context)
+}
+
+// MaxSubjectLen is the longest subject in bytes.
+const MaxSubjectLen = 255
+
+// ValidateSubject checks a subject: 1 to [MaxSubjectLen] bytes of valid UTF-8
+// with no control characters, so it is unambiguous in logs and in the additional
+// data a data key is wrapped with.
+func ValidateSubject(subject string) error {
+	if subject == "" || len(subject) > MaxSubjectLen {
+		return fmt.Errorf("%w: length %d, want 1 to %d bytes", ErrInvalidSubject, len(subject), MaxSubjectLen)
+	}
+	if !utf8.ValidString(subject) {
+		return fmt.Errorf("%w: not valid UTF-8", ErrInvalidSubject)
+	}
+	for _, r := range subject {
+		if unicode.IsControl(r) {
+			return fmt.Errorf("%w: contains a control character", ErrInvalidSubject)
+		}
+	}
+	return nil
+}
+
+// EncryptFor encrypts plaintext under a per-subject purpose with the subject's
+// own data key, creating the subject's first epoch if it has none. The subject
+// is not part of the envelope: the envelope names its data key, and the registry
+// knows whose key that is.
+//
+// A subject that has been shredded is [ErrSubjectShredded]. A purpose that is
+// not per-subject is [ErrSubjectNotAllowed].
+func (c *Client) EncryptFor(ctx context.Context, purpose Purpose, subject string, plaintext, context []byte) (*Envelope, error) {
+	cfg, err := c.purposeConfig(purpose)
+	if err != nil {
+		return nil, err
+	}
+	if !cfg.PerSubject {
+		return nil, fmt.Errorf("%w: %q", ErrSubjectNotAllowed, string(purpose))
+	}
+	if err := ValidateSubject(subject); err != nil {
+		return nil, err
+	}
+	return c.encrypt(ctx, purpose, subject, plaintext, context)
 }
 
 func (c *Client) encrypt(ctx context.Context, purpose Purpose, subject string, plaintext, bound []byte) (*Envelope, error) {
@@ -615,6 +675,9 @@ func (c *Client) advance(ctx context.Context, purpose Purpose, subject string, c
 	}
 
 	winner, err := c.store.AdvanceDEK(ctx, purpose, subject, from, rec)
+	if errors.Is(err, ErrSubjectShredded) {
+		return DEKRecord{}, fmt.Errorf("%w: %q for %q", err, string(purpose), subject)
+	}
 	if err != nil {
 		return DEKRecord{}, fmt.Errorf("%w: advancing the data key: %w", ErrKeyUnavailable, err)
 	}
