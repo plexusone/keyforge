@@ -612,8 +612,8 @@ source.
 
 | Kind | Examples | Authority | Verification state in the export |
 |---|---|---|---|
-| **Enforced** | Registry algorithms and profiles, purposes, key versions, providers, rotation policy and state, FIPS mode | keyforge | `verified`, with configuration and runtime evidence from keyforge |
-| **Declared** | Edge TLS at a CDN, service-to-service TLS, database TLS: the expectation (minimum version, suites, key exchange groups, certificate key strength) | The system that configures it; keyforge holds the expectation | `attested`, or `review-required` once its review date passes |
+| **Enforced** | Registry algorithms and profiles, purposes, key classes and rotation policy, a dated summary of key state, providers, FIPS mode | keyforge | `verified`, with configuration and runtime evidence from keyforge |
+| **Declared** | Edge TLS at a CDN, service-to-service TLS, database TLS: the expectation (minimum version, suites, key exchange groups, certificate key strength) | The system that configures it; keyforge holds the expectation | `attested`, or `review-required` once its review date passes (derived when read, not stored) |
 | **Observed** | A scan's handshake results, a dependency analysis | The scanner | `discovered`, promoted to `verified` when it matches the expectation |
 
 ### External boundaries
@@ -622,9 +622,24 @@ An external boundary record holds an identifier, a kind (`tls-edge`,
 `tls-internal`, `tls-database`, `storage-at-rest`, and so on), the
 **expectation**, an owner, a pointer to where the real configuration lives
 (an IaC path, a cloud console resource, a vendor document), and a review
-date. keyforge does not enforce it. A declaration past its review date is
-exported as `review-required`, so stale assertions cannot be read as current
-fact.
+date. keyforge does not enforce it.
+
+- **Policy is the floor; the expectation is at or above it.** The floor is
+  the platform's cryptographic policy (a minimum TLS version, a minimum key
+  size, an allow-set of suites). A boundary with no expectation is held to
+  the floor directly. An expectation may be stricter without justification.
+- **An expectation below the floor is a waiver.** It carries a reason and an
+  owner, and it needs a review date. It is reported as a conditional pass
+  until that date and as a failure after it.
+- **Three results are kept distinct:** an observation below the floor is a
+  violation; an observation below the expectation but above the floor is
+  drift; an expectation below the floor is an exception.
+- **The review date belongs to the claim that covers the record.** The export
+  states each boundary's expectation as a claim with `reviewBy`, `reviewedAt`
+  and `reviewedBy`. A declaration past its review date is read as
+  `review-required`; the stored status is not rewritten, so stale assertions
+  cannot be read as current fact and the export does not change meaning with
+  the clock.
 
 ### Export
 
@@ -636,10 +651,16 @@ fact.
   evidence pointing to keyforge configuration and the external boundary
   records.
 - The export is derived and reproducible. It is never edited by hand, and
-  it contains key identifiers and versions at most, never key material.
-- Where the specification does not yet model a detail (key classes,
-  certificates, protocol detail are reserved in v0.1), the export uses the
+  it contains key identifiers at most, never key material. Key state is a
+  dated summary claim ("all versions within policy as of T; current version
+  N") backed by `verified` evidence; the export has no row per key version,
+  which would change with every rotation and with the weekly canary.
+- Where the specification does not yet model a detail, the export uses the
   objects it has and leaves the rest undocumented rather than inventing it.
+  Key classes, certificates and protocol detail arrive in the
+  specification's later phases, and the review, expectation, operating-mode
+  and algorithm-profile fields in the phase after them. The export gains each
+  as it ships, and the first export is limited to the v0.1 objects.
 
 ### Verification
 
@@ -649,8 +670,9 @@ export format defined here. A test application or scanner will take the
 exported specification and the registered expectations, observe the deployed
 system (TLS handshakes, certificate chains, key exchange groups including
 hybrid post-quantum ones), and attach its results as evidence. A mismatch
-between an expectation and an observation is a finding. Results flow back as
-evidence on claims and do not edit the inventory.
+between an expectation and an observation is a finding (drift when the
+observation is still above the policy floor, a violation when it is below).
+Results flow back as evidence on claims and do not edit the inventory.
 
 ### What keyforge does not do here
 

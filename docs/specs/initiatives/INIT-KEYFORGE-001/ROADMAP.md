@@ -105,7 +105,7 @@ certificate lifecycle through the same registry.
 
 **Theme:** keyforge is the single system of record for the platform's cryptographic choices and generates the system's crypto specification for verification.
 
-- [ ] `RMI-KEYFORGE-026` Inventory model and store: external boundary records (kind, expectation, owner, source pointer, review date) with review-date expiry
+- [ ] `RMI-KEYFORGE-026` Inventory model and store: external boundary records (kind, expectation at or above the policy floor or a waiver, owner, source pointer, review date) with expiry derived at read time
   - Depends on: `RMI-KEYFORGE-018`, `RMI-KEYFORGE-025`
 - [ ] `RMI-KEYFORGE-027` `systemspec-crypto` export: implementations, registry algorithms, uses per purpose, claims with verification states, and evidence, with no key material; `keyforge spec export`
   - Depends on: `RMI-KEYFORGE-026`
