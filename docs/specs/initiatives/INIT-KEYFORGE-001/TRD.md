@@ -361,13 +361,30 @@ type KeySpec struct {
 - The file is created with mode 0600, and a keyring that group or others can
   read is refused. Opening a provider zeroes the root key after deriving from
   it, and `Close` zeroes the key material the provider holds.
-- A monotonically increasing **keyring generation** is stored in the file.
-  `keyforge backup ack` records the generation of the copy the operator has
-  safely stored; `status` reports a keyring whose generation is ahead of the
-  acknowledged one, and rotation under a policy that requires a verified
-  backup waits until the acknowledgement catches up (otherwise a restored
-  backup that predates a rotation would lose data wrapped under the newer
-  version).
+- A monotonically increasing **keyring generation** is stored in the file's
+  authenticated header, where it can be read without the root key. Every
+  change, including a root key rotation, increases it, and a write is always
+  above every generation the host has seen, so generations are never reused.
+- **Backup state** is kept in a small file beside the keyring
+  (`<keyring>.backup`), not inside it: recording an acknowledgement in the
+  keyring would itself change its generation and leave it permanently one ahead
+  of its acknowledgement. It holds the highest generation seen and the last
+  acknowledged one with its time and a note. It is not authenticated: it
+  catches mistakes, not an attacker who can already replace the keyring.
+- `keyforge backup ack` records the generation of the copy the operator has
+  safely stored. It cannot acknowledge a generation the keyring has not
+  reached, or one older than the last acknowledgement. `status` reports a
+  keyring whose generation is ahead of the acknowledged one, and rotation under
+  a policy that requires a verified backup waits until the acknowledgement
+  catches up (otherwise a restored backup that predates a rotation would lose
+  data wrapped under the newer version).
+- **Restoring an older copy is detected** when the keyring is opened: a
+  generation below the highest this host has seen is `ErrKeyringRolledBack`,
+  naming both. An operator who intended the restore opens with the rollback
+  accepted, which clamps the acknowledgement to the restored generation and
+  continues numbering above everything seen. A copy can be compared with the
+  live keyring without the root key by reading its generation and root key
+  identifier from the header.
 - The provider is reported as `local` in status and in the startup log, so it
   is not mistaken for a managed one.
 
