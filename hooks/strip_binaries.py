@@ -1,15 +1,20 @@
-"""Remove the binary files MkDocs and the theme add to the built site.
+"""Remove the theme's default PNG favicon from the built site.
 
 The site is published from a branch that holds only the built output, and the
-publication scan refuses a file it cannot read as text. The two binaries are
-a gzipped copy of the sitemap, which MkDocs writes itself, and the theme's
-default PNG favicon, which the SVG favicon in mkdocs.yml replaces. Nothing
-links to either.
+publication scan refuses a file it cannot read as text. The theme's PNG favicon
+is replaced by the SVG favicon in mkdocs.yml and nothing links to it.
+
+The gzipped sitemap that MkDocs writes is kept: search engines read it, and it
+is allowed by name in the central publication policy.
+
+Python writes bytecode for this file into hooks/__pycache__, which the
+publication scan of the working tree also refuses as an unreadable binary. Build
+with PYTHONDONTWRITEBYTECODE=1 to avoid creating it, or delete the directory.
 """
 
 import os
 
-_BINARIES = ("sitemap.xml.gz", os.path.join("assets", "images", "favicon.png"))
+_BINARIES = (os.path.join("assets", "images", "favicon.png"),)
 
 
 def on_post_build(config, **kwargs):
