@@ -598,6 +598,12 @@ end to end and a single-host deployment can drill without writing any.
 - A key destroyed or retired in the registry can still be used from a cache
   until its entry expires. `Purge` drops every cached key at once for a host
   that needs immediacy.
+- A client that cached the active KEK version keeps wrapping new data keys
+  under it until the entry expires, so a data key can be created under a
+  version that has just stopped being active. The re-wrap job covers those
+  records, and the retirement delay (30 days by default) must be far longer
+  than the cache TTL (5 minutes by default) so that no such record can appear
+  after a version is eligible for retirement.
 - Reads and writes for cached DEKs continue during a registry or provider
   outage. A key not in the cache fails closed.
 - A cache hit after a KEK rotation is still correct: the unwrapped DEK did
