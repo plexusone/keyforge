@@ -46,8 +46,11 @@ If the code and the TRD disagree, resolve it in the TRD in the same change.
   to a weaker path.
 - **No network call per encrypt or decrypt.** The data path is in process.
 - **Core stays dependency-light.** The core module depends on the standard
-  library and `golang.org/x/crypto`. ORM and cloud SDK code lives in separate
-  packages or modules.
+  library, `golang.org/x/crypto`, and OmniWorkflow's provider-neutral packages
+  (`omniworkflow`, `omniworkflow/inmemory`, `omniworkflow/durable`), which
+  import only the standard library. The `jobs` package is the only place they
+  are imported. Temporal, Step Functions, ORM and cloud SDK code lives in
+  separate packages or modules, and a host chooses its provider.
 - **Time and randomness are injected** (a clock, an entropy reader) so tests
   are deterministic.
 - **Public-ready.** This repository is public: write code, comments, docs and
