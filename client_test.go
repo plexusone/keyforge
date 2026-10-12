@@ -696,3 +696,92 @@ func TestInlineWrapAADLayoutIsFrozen(t *testing.T) {
 		t.Fatalf("InlineWrapAAD = %q\nwant           %q", got, want)
 	}
 }
+
+// TestEpochRollsByAge checks the second trigger for a new epoch: a data key has
+// a lifetime as well as a volume, so an epoch that has reached its age is
+// replaced even though it has capacity left.
+func TestEpochRollsByAge(t *testing.T) {
+	en := newEnv(t, func(e *env) { e.opts.MaxAge = 24 * time.Hour })
+	c := en.client()
+
+	first, err := c.Encrypt(bg, testPurpose, []byte("one"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	en.clock.Advance(24*time.Hour - time.Second)
+	same, err := c.Encrypt(bg, testPurpose, []byte("two"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if same.DEKID != first.DEKID {
+		t.Fatal("the epoch rolled before it reached its age")
+	}
+
+	en.clock.Advance(time.Second) // exactly the age: a data key is used for less than its lifetime
+	next, err := c.Encrypt(bg, testPurpose, []byte("three"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.DEKID == first.DEKID {
+		t.Fatal("the epoch did not roll at its age")
+	}
+	if got := en.store.deks[next.DEKID].Epoch; got != 2 {
+		t.Fatalf("new epoch = %d, want 2", got)
+	}
+
+	// The old key still reads, and reports itself stale so data can be rewritten.
+	pt, info, err := c.Decrypt(bg, testPurpose, first, nil)
+	if err != nil || string(pt) != "one" || !info.Stale {
+		t.Fatalf("Decrypt of the old epoch = %q, %+v, %v", pt, info, err)
+	}
+	// And the new key serves the next writes, with no further roll.
+	again, err := c.Encrypt(bg, testPurpose, []byte("four"), nil)
+	if err != nil || again.DEKID != next.DEKID {
+		t.Fatalf("a write after the roll used %v, %v", again.DEKID, err)
+	}
+}
+
+func TestPurposeOverridesTheMaximumAge(t *testing.T) {
+	en := newEnv(t, func(e *env) {
+		e.opts.MaxAge = 24 * time.Hour
+		e.opts.Purposes[testPurpose] = keyforge.PurposeConfig{MaxAge: time.Hour}
+	})
+	c := en.client()
+	a, err := c.Encrypt(bg, testPurpose, []byte("x"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	en.clock.Advance(2 * time.Hour)
+	b, err := c.Encrypt(bg, testPurpose, []byte("x"), nil)
+	if err != nil || b.DEKID == a.DEKID {
+		t.Fatalf("the purpose's one-hour age was not honored: %v", err)
+	}
+}
+
+func TestNegativeAgeIsRefused(t *testing.T) {
+	en := newEnv(t, func(e *env) { e.opts.MaxAge = -time.Hour })
+	if _, err := keyforge.New(en.opts); err == nil {
+		t.Fatal("a negative maximum age was accepted")
+	}
+	en = newEnv(t, func(e *env) { e.opts.Purposes[testPurpose] = keyforge.PurposeConfig{MaxAge: -1} })
+	if _, err := keyforge.New(en.opts); err == nil {
+		t.Fatal("a negative purpose maximum age was accepted")
+	}
+}
+
+func TestDefaultMaximumAgeIsNinetyDays(t *testing.T) {
+	en := newEnv(t)
+	c := en.client()
+	a, err := c.Encrypt(bg, testPurpose, []byte("x"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	en.clock.Advance(89 * 24 * time.Hour)
+	if b, err := c.Encrypt(bg, testPurpose, []byte("x"), nil); err != nil || b.DEKID != a.DEKID {
+		t.Fatalf("rolled before 90 days: %v", err)
+	}
+	en.clock.Advance(24 * time.Hour)
+	if b, err := c.Encrypt(bg, testPurpose, []byte("x"), nil); err != nil || b.DEKID == a.DEKID {
+		t.Fatalf("did not roll at 90 days: %v", err)
+	}
+}

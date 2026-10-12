@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/plexusone/keyforge"
+	"github.com/plexusone/keyforge/algorithm"
 	"github.com/plexusone/keyforge/policy"
 )
 
@@ -174,5 +175,24 @@ func TestJSONRejectsMistakes(t *testing.T) {
 	var partial policy.Policy
 	if err := json.Unmarshal([]byte(`{"dekMaxAge":"7d"}`), &partial); err != nil || partial.DEKMaxAge != 7*day || partial.KEKInterval != 0 {
 		t.Errorf("a partial policy = %+v, %v; unset fields must stay zero so they inherit", partial, err)
+	}
+}
+
+func TestPurposeConfigsCarryPolicyIntoTheClient(t *testing.T) {
+	s := policy.Set{
+		Default:  policy.Policy{DEKMaxAge: 30 * day},
+		Purposes: map[keyforge.Purpose]policy.Policy{"sessions": {DEKMaxAge: 7 * day, DEKMaxEncryptions: 5000}},
+	}
+	sel := algorithm.Selection{Allowed: []algorithm.ID{algorithm.AES256GCM}}
+	got := s.PurposeConfigs(map[keyforge.Purpose]algorithm.Selection{"sessions": sel, "orders": {}})
+
+	if c := got["sessions"]; c.MaxAge != 7*day || c.EncryptionCap != 5000 || len(c.Algorithms.Allowed) != 1 {
+		t.Errorf("sessions = %+v", c)
+	}
+	if c := got["orders"]; c.MaxAge != 30*day || c.EncryptionCap != policy.DefaultDEKMaxEncryptions {
+		t.Errorf("orders = %+v, want the default policy's values", c)
+	}
+	if len(got) != 2 {
+		t.Errorf("%d purposes configured, want only those given", len(got))
 	}
 }
