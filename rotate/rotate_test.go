@@ -14,6 +14,7 @@ import (
 	"github.com/plexusone/keyforge/algorithm"
 	"github.com/plexusone/keyforge/audit"
 	"github.com/plexusone/keyforge/envelope"
+	"github.com/plexusone/keyforge/guard"
 	"github.com/plexusone/keyforge/policy"
 	"github.com/plexusone/keyforge/provider"
 	"github.com/plexusone/keyforge/provider/local"
@@ -707,4 +708,437 @@ func TestNewValidates(t *testing.T) {
 			t.Errorf("%s: New accepted the options", name)
 		}
 	}
+}
+
+// ---- retirement and destruction ----
+
+// guardLog is a guard that answers from a script and records what it was asked.
+type guardLog struct {
+	mu      sync.Mutex
+	answers []guardAnswer
+	asked   []guardAsked
+}
+
+type guardAnswer struct {
+	d   guard.Decision
+	err error
+}
+
+type guardAsked struct{ action, refs, emergency string }
+
+func (g *guardLog) Check(_ context.Context, req guard.Request) (guard.Decision, error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.asked = append(g.asked, guardAsked{string(req.Action), fmt.Sprint(req.References), fmt.Sprint(req.Emergency)})
+	if len(g.answers) == 0 {
+		return guard.Allow(), nil
+	}
+	a := g.answers[0]
+	if len(g.answers) > 1 {
+		g.answers = g.answers[1:]
+	}
+	return a.d, a.err
+}
+
+func (g *guardLog) calls() int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return len(g.asked)
+}
+
+// retireWorld has KEK version 1 drained and outside the floor, ready to retire.
+// It also returns an inline envelope made under version 1, which no registry
+// record points at.
+func retireWorld(t *testing.T, g guard.Guard, mk func(*testing.T) provider.Provider) (*world, *rotate.Rotator, *envelope.Envelope) {
+	t.Helper()
+	w := newWorld(t, setup{prov: mk})
+	c := w.client(small)
+	w.seed(c, 4)
+	inline, err := c.EncryptInline(bg, purpose, []byte("an export"), []byte("exp"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, err := w.rot.RotateKEK(bg, purpose); err != nil {
+			t.Fatal(err)
+		}
+		w.clock.Advance(time.Minute)
+	}
+	// Move what the first version wraps, so nothing references it.
+	if _, err := w.rot.Rewrap(bg, w.kek.ID, 1, rotate.RewrapOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	rot, err := rotate.New(rotate.Options{
+		Store: w.store, Providers: []provider.Provider{w.prov}, Clock: w.clock, Audit: w.audit, Guard: g,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return w, rot, inline
+}
+
+func TestRequestRetirementStartsTheDelay(t *testing.T) {
+	w, _, _ := retireWorld(t, guard.AllowAll(), nil)
+	w.audit = &audit.Recorder{} // only what follows
+	rot2, err := rotate.New(rotate.Options{Store: w.store, Providers: []provider.Provider{w.prov}, Clock: w.clock, Audit: w.audit, Guard: guard.AllowAll()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := rot2.RequestRetirement(bg, w.kek.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.State != registry.VersionRetireRequested {
+		t.Fatalf("RequestRetirement = %+v", res)
+	}
+	rec, err := w.store.GetVersion(bg, w.kek.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := w.clock.Now().Add(policy.DefaultRetirementDelay)
+	if !rec.RetireAfter.Equal(want) {
+		t.Fatalf("RetireAfter = %v, want now plus the policy delay %v", rec.RetireAfter, want)
+	}
+	if a := w.audit.Actions(); len(a) != 1 || a[0] != audit.KeyRetireRequested {
+		t.Fatalf("audit actions = %v", a)
+	}
+}
+
+func TestRequestRetirementRefusals(t *testing.T) {
+	w := newWorld(t, setup{})
+	rot, err := rotate.New(rotate.Options{Store: w.store, Providers: []provider.Provider{w.prov}, Clock: w.clock, Guard: guard.AllowAll()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The active version.
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); !errors.Is(err, rotate.ErrWrongState) {
+		t.Errorf("retiring the active version = %v, want ErrWrongState", err)
+	}
+	if _, err := w.rot.RotateKEK(bg, purpose); err != nil {
+		t.Fatal(err)
+	}
+	// Decrypt-only, but it is the rollback margin.
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); !errors.Is(err, rotate.ErrNotEligible) {
+		t.Errorf("retiring a version inside the floor = %v, want ErrNotEligible", err)
+	}
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 99); !errors.Is(err, registry.ErrVersionNotFound) {
+		t.Errorf("retiring a missing version = %v", err)
+	}
+}
+
+func TestCompleteRetirementWaitsForTheDelayAndReferences(t *testing.T) {
+	g := &guardLog{}
+	w, rot, _ := retireWorld(t, g, nil)
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	// Before the delay the guard is not even asked.
+	if _, err := rot.CompleteRetirement(bg, w.kek.ID, 1); !errors.Is(err, registry.ErrRetireDelay) {
+		t.Fatalf("CompleteRetirement inside the delay = %v, want ErrRetireDelay", err)
+	}
+	if g.calls() != 0 {
+		t.Fatalf("the guard was asked %d times before the delay had run", g.calls())
+	}
+
+	w.clock.Advance(policy.DefaultRetirementDelay)
+	res, err := rot.CompleteRetirement(bg, w.kek.ID, 1)
+	if err != nil || res.Outcome != guard.Allowed || res.State != registry.VersionRetired {
+		t.Fatalf("CompleteRetirement = %+v, %v", res, err)
+	}
+	if g.asked[0].action != "retire" || g.asked[0].refs != "0" || g.asked[0].emergency != "false" {
+		t.Fatalf("the guard was asked %+v", g.asked)
+	}
+	// Retired is not usable, though the provider still holds the material.
+	if ok, err := w.store.KEKVersionUsable(bg, w.kek.ID, 1); err != nil || ok {
+		t.Fatalf("a retired version is usable: %v, %v", ok, err)
+	}
+}
+
+func TestCompleteRetirementRefusesWhileReferenced(t *testing.T) {
+	g := &guardLog{}
+	w := newWorld(t, setup{})
+	c := w.client(small)
+	w.seed(c, 4)
+	for range 2 {
+		if _, err := w.rot.RotateKEK(bg, purpose); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Version 1 still wraps two data keys: it was never re-wrapped.
+	rot, err := rotate.New(rotate.Options{Store: w.store, Providers: []provider.Provider{w.prov}, Clock: w.clock, Guard: g})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	w.clock.Advance(policy.DefaultRetirementDelay)
+	if _, err := rot.CompleteRetirement(bg, w.kek.ID, 1); !errors.Is(err, registry.ErrVersionReferenced) {
+		t.Fatalf("CompleteRetirement = %v, want ErrVersionReferenced", err)
+	}
+	if g.calls() != 0 {
+		t.Fatal("the guard was asked about a version that is still referenced")
+	}
+	if w.versions()[1] != registry.VersionRetireRequested {
+		t.Fatalf("state = %v", w.versions()[1])
+	}
+}
+
+func TestGuardDenialReturnsTheKeyToService(t *testing.T) {
+	g := &guardLog{answers: []guardAnswer{{d: guard.Deny("legal hold on orders")}}}
+	w, _, _ := retireWorld(t, g, nil)
+	w.audit = &audit.Recorder{}
+	rot, err := rotate.New(rotate.Options{Store: w.store, Providers: []provider.Provider{w.prov}, Clock: w.clock, Audit: w.audit, Guard: g})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	w.clock.Advance(policy.DefaultRetirementDelay)
+
+	res, err := rot.CompleteRetirement(bg, w.kek.ID, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Outcome != guard.Denied || res.Reason != "legal hold on orders" || res.State != registry.VersionDecryptOnly {
+		t.Fatalf("CompleteRetirement = %+v", res)
+	}
+	rec, _ := w.store.GetVersion(bg, w.kek.ID, 1)
+	if rec.State != registry.VersionDecryptOnly || !rec.RetireAfter.IsZero() {
+		t.Fatalf("version = %+v, want decrypt-only with no delay running", rec)
+	}
+	want := []audit.Action{audit.KeyRetireRequested, audit.GuardDenied, audit.KeyRetireCancelled}
+	got := w.audit.Actions()
+	if len(got) != 3 || got[0] != want[0] || got[1] != want[1] || got[2] != want[2] {
+		t.Fatalf("audit actions = %v, want %v", got, want)
+	}
+	if ev := w.audit.Events()[1]; ev.Reason != "legal hold on orders" || ev.Outcome != audit.Denied {
+		t.Fatalf("the denial event = %+v", ev)
+	}
+}
+
+func TestGuardPendingLeavesItWaiting(t *testing.T) {
+	g := &guardLog{answers: []guardAnswer{{d: guard.AwaitApproval("approval 41 outstanding")}, {d: guard.Allow()}}}
+	w, rot, _ := retireWorld(t, g, nil)
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	w.clock.Advance(policy.DefaultRetirementDelay)
+
+	res, err := rot.CompleteRetirement(bg, w.kek.ID, 1)
+	if err != nil || res.Outcome != guard.Pending || res.State != registry.VersionRetireRequested {
+		t.Fatalf("first CompleteRetirement = %+v, %v", res, err)
+	}
+	if ok, _ := w.store.KEKVersionUsable(bg, w.kek.ID, 1); !ok {
+		t.Fatal("a pending answer made the version unusable")
+	}
+	// Asked again on the next pass, and this time allowed.
+	res, err = rot.CompleteRetirement(bg, w.kek.ID, 1)
+	if err != nil || res.State != registry.VersionRetired {
+		t.Fatalf("second CompleteRetirement = %+v, %v", res, err)
+	}
+}
+
+func TestGuardErrorOrAbsenceAdvancesNothing(t *testing.T) {
+	t.Run("error", func(t *testing.T) {
+		g := &guardLog{answers: []guardAnswer{{err: errors.New("approval service unreachable")}}}
+		w, rot, _ := retireWorld(t, g, nil)
+		if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+			t.Fatal(err)
+		}
+		w.clock.Advance(policy.DefaultRetirementDelay)
+		if _, err := rot.CompleteRetirement(bg, w.kek.ID, 1); err == nil {
+			t.Fatal("a guard error was treated as consent")
+		}
+		if w.versions()[1] != registry.VersionRetireRequested {
+			t.Fatalf("state = %v", w.versions()[1])
+		}
+	})
+	t.Run("no guard", func(t *testing.T) {
+		w, rot, _ := retireWorld(t, nil, nil)
+		if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+			t.Fatal(err)
+		}
+		w.clock.Advance(policy.DefaultRetirementDelay)
+		res, err := rot.CompleteRetirement(bg, w.kek.ID, 1)
+		if err != nil || res.Outcome != guard.Denied || res.Reason != guard.ErrNoGuard {
+			t.Fatalf("CompleteRetirement with no guard = %+v, %v, want a denial", res, err)
+		}
+	})
+	t.Run("invalid outcome", func(t *testing.T) {
+		g := &guardLog{answers: []guardAnswer{{d: guard.Decision{}}}}
+		w, rot, _ := retireWorld(t, g, nil)
+		if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+			t.Fatal(err)
+		}
+		w.clock.Advance(policy.DefaultRetirementDelay)
+		if _, err := rot.CompleteRetirement(bg, w.kek.ID, 1); err == nil {
+			t.Fatal("a zero decision was treated as an allow")
+		}
+	})
+}
+
+func TestCancelRetirement(t *testing.T) {
+	w, rot, _ := retireWorld(t, guard.AllowAll(), nil)
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	res, err := rot.CancelRetirement(bg, w.kek.ID, 1)
+	if err != nil || res.State != registry.VersionDecryptOnly {
+		t.Fatalf("CancelRetirement = %+v, %v", res, err)
+	}
+	if _, err := rot.CancelRetirement(bg, w.kek.ID, 1); err == nil {
+		t.Fatal("cancelling a version that is not retire-requested succeeded")
+	}
+}
+
+func TestDestroyOrderAndGuard(t *testing.T) {
+	for name, mk := range styles() {
+		t.Run(name, func(t *testing.T) {
+			g := &guardLog{}
+			w, rot, _ := retireWorld(t, g, mk)
+			if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+				t.Fatal(err)
+			}
+			w.clock.Advance(policy.DefaultRetirementDelay)
+			if _, err := rot.CompleteRetirement(bg, w.kek.ID, 1); err != nil {
+				t.Fatal(err)
+			}
+
+			// A version that is only retired still has its material at the provider.
+			if _, err := w.prov.Wrap(bg, w.kek, 1, bytes.Repeat([]byte{1}, 32), nil); err != nil {
+				t.Fatalf("the provider no longer has a retired version: %v", err)
+			}
+
+			res, err := rot.Destroy(bg, w.kek.ID, 1)
+			if err != nil || res.State != registry.VersionDestroyed {
+				t.Fatalf("Destroy = %+v, %v", res, err)
+			}
+			if g.asked[len(g.asked)-1].action != "destroy" {
+				t.Fatalf("the guard was asked %+v", g.asked)
+			}
+			if _, err := w.prov.Wrap(bg, w.kek, 1, bytes.Repeat([]byte{1}, 32), nil); !errors.Is(err, provider.ErrVersionDestroyed) {
+				t.Fatalf("the provider still wraps under a destroyed version: %v", err)
+			}
+			// Repeating is harmless.
+			if _, err := rot.Destroy(bg, w.kek.ID, 1); !errors.Is(err, rotate.ErrWrongState) {
+				t.Fatalf("destroying a destroyed version = %v, want ErrWrongState", err)
+			}
+		})
+	}
+}
+
+func TestDestroyDeniedLeavesTheMaterial(t *testing.T) {
+	g := &guardLog{answers: []guardAnswer{{d: guard.Allow()}, {d: guard.Deny("export from last quarter still needs it")}}}
+	w, rot, _ := retireWorld(t, g, nil)
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	w.clock.Advance(policy.DefaultRetirementDelay)
+	if _, err := rot.CompleteRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := rot.Destroy(bg, w.kek.ID, 1)
+	if err != nil || res.Outcome != guard.Denied || res.State != registry.VersionRetired {
+		t.Fatalf("Destroy = %+v, %v, want a denial leaving it retired", res, err)
+	}
+	if _, err := w.prov.Wrap(bg, w.kek, 1, bytes.Repeat([]byte{1}, 32), nil); err != nil {
+		t.Fatalf("a denied destruction touched the provider: %v", err)
+	}
+	if !contains(w.audit.Actions(), audit.GuardDenied) {
+		t.Fatalf("audit actions = %v, want the denial recorded", w.audit.Actions())
+	}
+}
+
+// failingDestroy fails the provider's Destroy, as a provider outage would.
+type failingDestroy struct {
+	provider.Provider
+	fail bool
+}
+
+func (f *failingDestroy) Destroy(ctx context.Context, ref provider.KeyRef, v uint32) error {
+	if f.fail {
+		return errors.New("provider unavailable")
+	}
+	return f.Provider.Destroy(ctx, ref, v)
+}
+
+func TestDestroyIsRetryable(t *testing.T) {
+	w := newWorld(t, setup{})
+	c := w.client(small)
+	w.seed(c, 4)
+	for range 2 {
+		if _, err := w.rot.RotateKEK(bg, purpose); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := w.rot.Rewrap(bg, w.kek.ID, 1, rotate.RewrapOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	fd := &failingDestroy{Provider: w.prov, fail: true}
+	rot, err := rotate.New(rotate.Options{Store: w.store, Providers: []provider.Provider{fd}, Clock: w.clock, Guard: guard.AllowAll()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	w.clock.Advance(policy.DefaultRetirementDelay)
+	if _, err := rot.CompleteRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	// The provider fails: the registry does not claim a destruction that did not happen.
+	if _, err := rot.Destroy(bg, w.kek.ID, 1); err == nil {
+		t.Fatal("Destroy succeeded although the provider failed")
+	}
+	if w.versions()[1] != registry.VersionRetired {
+		t.Fatalf("state = %v after a provider failure, want retired", w.versions()[1])
+	}
+
+	fd.fail = false
+	if res, err := rot.Destroy(bg, w.kek.ID, 1); err != nil || res.State != registry.VersionDestroyed {
+		t.Fatalf("retry = %+v, %v", res, err)
+	}
+}
+
+func TestClientRefusesARetiredVersionEvenWhileTheProviderHoldsIt(t *testing.T) {
+	w, rot, inline := retireWorld(t, guard.AllowAll(), nil)
+
+	// Before retirement the inline object, made under version 1, still opens:
+	// it is decrypt-only, and the registry does not count inline data.
+	if pt, _, err := w.client(small).Decrypt(bg, purpose, inline, []byte("exp")); err != nil || string(pt) != "an export" {
+		t.Fatalf("Decrypt before retirement = %q, %v", pt, err)
+	}
+
+	if _, err := rot.RequestRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	w.clock.Advance(policy.DefaultRetirementDelay)
+	if _, err := rot.CompleteRetirement(bg, w.kek.ID, 1); err != nil {
+		t.Fatal(err)
+	}
+	// The provider still holds the material, since retiring does not destroy it.
+	if _, err := w.prov.Wrap(bg, w.kek, 1, bytes.Repeat([]byte{1}, 32), nil); err != nil {
+		t.Fatalf("setup: the provider no longer holds version 1: %v", err)
+	}
+
+	// A fresh client, with nothing cached, is refused: retired means unusable.
+	_, _, err := w.client(small).Decrypt(bg, purpose, inline, []byte("exp"))
+	if !errors.Is(err, keyforge.ErrKeyUnusable) {
+		t.Fatalf("Decrypt under a retired version = %v, want ErrKeyUnusable", err)
+	}
+}
+
+func contains(as []audit.Action, a audit.Action) bool {
+	for _, x := range as {
+		if x == a {
+			return true
+		}
+	}
+	return false
 }
