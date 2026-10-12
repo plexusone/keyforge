@@ -51,9 +51,9 @@ Implements the [PRD](PRD.md).
 | `registry/storetest` | The store conformance suite |
 | `store/ent` | SQLite and PostgreSQL store (separate module so the core has no ORM dependency) |
 | `policy` | Rotation, epoch and retirement policy per purpose |
-| `rotate` | The scheduler and jobs |
+| `rotate` | KEK rotation, re-wrapping, rollback, retirement, destruction and the emergency procedures (the scheduler arrives with the control plane) |
 | `guard` | The `Guard` interface, its decisions and combinators |
-| `audit` | `Sink` interface and event types |
+| `audit` | Lifecycle events, the `Sink` interface, a recorder, and the actor context |
 | `service` | HTTP control plane |
 | `cmd/keyforge` | CLI (Cobra) |
 
@@ -620,14 +620,47 @@ because the facts can change between them.
 
 ### Emergency rotation
 
-Separate from scheduled rotation, and audited as such:
+Separate from scheduled rotation, and audited as such. It differs in three
+ways: it does not wait for a backup to be acknowledged, it has no retirement
+delay, and the guard is **asked and its answer recorded, but it cannot block**.
+A guard that denies, is pending, fails or is absent is on the trail and does not
+stop the procedure.
 
-- **KEK compromised:** mark the version `compromised`, create and activate a
-  new version, re-wrap every DEK, then destroy the old version. The guard may
-  not block the procedure but is consulted and its answer recorded.
-- **DEK exposed:** create a new epoch, mark the old DEK `compromised`, and
-  re-encrypt the data under it (the host drives this through `Reencrypt`;
-  keyforge reports the progress and the remaining references).
+**KEK compromised.** For a version that is known or suspected to be exposed:
+
+1. If it is active, replace it: the activation demotes it in the same
+   transaction, so there is no moment without an active version and nothing new
+   is wrapped under it afterwards. (A client holding a cached view can wrap
+   under it until its entry expires; the re-wrap covers those, and a repeat call
+   picks up stragglers.) A version that is not active needs no replacement.
+2. Mark it `compromised`.
+3. Re-wrap every data key away from it.
+4. Ask the guard and record the answer.
+5. Retire it, then destroy it at the provider, unless asked to keep the
+   material.
+
+- It is **idempotent and resumable**. If any data key cannot be moved the
+  version stays `compromised` and referenced, is not retired or destroyed, and
+  the call reports it as incomplete with the progress; calling again continues
+  without repeating the replacement or the marking.
+- **Data outside the registry** (inline envelopes, exports, snapshots) wrapped
+  under the version is not covered by the re-wrap and is lost when it is
+  destroyed. `KeepMaterial` stops after retirement so the host can recover what
+  it needs before destroying through the usual guarded path.
+
+**DEK exposed.** For a data key known or suspected to be exposed:
+
+1. If it is the current epoch, create the next epoch first, so writes move off
+   it at once.
+2. Mark it `compromised`. It stays readable.
+3. The **host re-encrypts** what it protects, with `Reencrypt` as it meets each
+   record or in a pass of its own: the data is the application's, and keyforge
+   cannot do it. The report gives an **upper bound** on how much was encrypted
+   under the key, the registry's reserved high-water mark, which can overstate;
+   which records are affected is found by the data key identifier their
+   envelopes carry.
+4. When the host is done it destroys the key through the guard. Destroying
+   removes the wrapped value and keeps the record as the trail.
 
 ## Rotation drill
 
