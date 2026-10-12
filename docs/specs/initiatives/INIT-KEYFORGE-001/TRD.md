@@ -878,10 +878,31 @@ include `key.created`, `key.rotated`, `key.activated`, `key.rolled_back`,
 Ordinary encrypt and decrypt are not logged individually; their rates and
 failures are metered.
 
-Metrics go through a small `Metrics` interface in the core (counters and
-gauges for operation rates, failures, cache hits, overdue keys and drill
-outcomes), with a no-op default. An OpenTelemetry adapter, if added, lives in
-a separate module so the core keeps its dependency rule.
+Metrics go through a small `Metrics` interface in the core (counters, gauges and
+duration observations), with a no-op default. An adapter to Prometheus or
+OpenTelemetry is a few lines over it and lives in the host or a separate module,
+so the core keeps its dependency rule.
+
+| Metric | Type | Labels |
+|---|---|---|
+| `keyforge_operations_total` | counter | `op`, `purpose`, `outcome` |
+| `keyforge_operation_duration` | observation | `op`, `purpose` |
+| `keyforge_cache_lookups_total` | counter | `cache` (dek, inline, current), `result` |
+| `keyforge_epoch_advances_total` | counter | `purpose`, `reason` (first, cap, age, not_active, manual) |
+| `keyforge_kek_rotations_total` | counter | `purpose`, `outcome` |
+| `keyforge_rewrapped_keys_total` | counter | `outcome` (moved, skipped, failed) |
+| `keyforge_kek_rotation_overdue_seconds` | gauge | `purpose` |
+| `keyforge_jobs_started_total`, `keyforge_jobs_failed_total` | counter | `kind` |
+| `keyforge_jobs_waiting`, `keyforge_jobs_in_flight` | gauge | none |
+
+- **Labels are bounded by construction.** The purpose is a configured name, and
+  one the client is not configured for is reported as `unknown`; an outcome is
+  one of a small fixed set (`ok`, `unavailable`, `unusable`, `authentication`,
+  `invalid`, `refused`, `shredded`, `error`). A subject, a key identifier, a
+  context or an error message is never a label.
+- **The overdue gauge is reported as zero when nothing is late**, for every
+  configured purpose, so a recovered rotation clears an alert instead of leaving
+  a stale value.
 
 ## Control plane
 
