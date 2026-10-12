@@ -60,26 +60,37 @@ var vectorErrors = map[string]error{
 	"ErrAuthentication":    envelope.ErrAuthentication,
 }
 
-func loadVectors(t *testing.T) vectorFile {
-	t.Helper()
+func readVectorFile() (vectorFile, error) {
+	var f vectorFile
 	b, err := os.ReadFile(vectorsPath)
 	if err != nil {
-		t.Fatal(err)
+		return f, err
 	}
-	var f vectorFile
-	if err := json.Unmarshal(b, &f); err != nil {
+	err = json.Unmarshal(b, &f)
+	return f, err
+}
+
+func loadVectors(t *testing.T) vectorFile {
+	t.Helper()
+	f, err := readVectorFile()
+	if err != nil {
 		t.Fatal(err)
 	}
 	return f
 }
 
-func mustHex(t *testing.T, s string) []byte {
-	t.Helper()
+func mustDecodeHex(tb testing.TB, s string) []byte {
+	tb.Helper()
 	b, err := hex.DecodeString(s)
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	return b
+}
+
+func mustHex(t *testing.T, s string) []byte {
+	t.Helper()
+	return mustDecodeHex(t, s)
 }
 
 // TestVectors opens published envelopes. They were produced once by the seal
