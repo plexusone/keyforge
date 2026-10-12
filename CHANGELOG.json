@@ -63,7 +63,7 @@
           "description": "Documentation: getting started, operations, envelope format, threat model, and the product and technical requirements"
         },
         {
-          "description": "Import-boundary test: the packages that touch key material import only the standard library"
+          "description": "Import-boundary test: the packages that touch key material import only the standard library and oscompat, a dependency-free module for operating-system differences"
         }
       ],
       "security": [

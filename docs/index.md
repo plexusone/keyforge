@@ -69,5 +69,6 @@ Continue with [Getting started](getting-started.md).
 | `rotate`, `jobs` | Rotation, re-wrapping, retirement, emergencies and erasure, and their scheduler |
 | `service`, `cli` | The HTTP control plane and the command line over it |
 
-The packages that touch key material import only the standard library, and a
-test enforces it.
+The packages that touch key material import only the standard library and
+[oscompat](https://github.com/grokify/oscompat), a dependency-free module for
+operating-system differences, and a test enforces it.
