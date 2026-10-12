@@ -1244,7 +1244,16 @@ Results flow back as evidence on claims and do not edit the inventory.
   a published envelope), and the seal path is tested by round trip.
 - **Scale benchmark** for success criterion 2: a KEK rotation over a store
   holding a million wrapped DEKs completes, and concurrent reads succeed
-  throughout.
+  throughout. `BenchmarkRotateAndRewrap` (in memory, so it measures keyforge's
+  own work) and `BenchmarkRotateAndRewrapSQLite` (a transaction per key) take
+  `KEYFORGE_BENCH_KEYS`; one million keys is a few seconds in memory and a few
+  minutes on SQLite with full synchronous writes. Batching several keys to a
+  transaction is the known way to speed the SQL case up. Concurrent reads
+  during a rotation and re-wrap are a test, run with the race detector.
+- **Lifecycle tests on the whole stack** (`embedded`): a seeded random
+  sequence of writes, rotations, re-wraps, the passage of time and restarts
+  after which every envelope written still decrypts; and a re-wrap interrupted
+  after each possible number of keys, then resumed by a restarted system.
 - **FIPS-only run** of the test suite under `GODEBUG=fips140=only` in CI.
 
 ## Integration
