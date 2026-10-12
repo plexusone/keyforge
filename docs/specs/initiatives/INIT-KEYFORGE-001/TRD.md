@@ -470,14 +470,38 @@ per-purpose overrides; a field a purpose leaves unset inherits.
 
 ### KEK rotation (automatic, default 365 days)
 
-1. Create the next version at the provider (`pending`).
+1. Create the next version at the provider and register it as `pending`.
 2. Mark it `active` and the previous version `decrypt-only`, in one registry
    transaction.
-3. A resumable job re-wraps DEK records still wrapped under the old version,
+3. Record a **sentinel** for the new version: a fixed, non-secret marker sealed
+   as an inline envelope under a fresh data key wrapped by that version. The
+   recovery drill decrypts it to prove a restored registry and keyring can still
+   use the version.
+4. A resumable job re-wraps DEK records still wrapped under the old version,
    in batches, recording a cursor. Each batch unwraps with the old version
-   and wraps with the new one; it is idempotent.
-4. When no DEK record references the old version, it becomes eligible for
+   and wraps with the new one using the same additional data, then replaces the
+   record with a compare-and-set on the version it read; it is idempotent.
+5. When no DEK record references the old version, it becomes eligible for
    retirement, subject to the retained-versions rule below.
+
+- **The interval is measured from activation**, recorded as `ActivatedAt` on
+  every activation including a rollback, and not from creation.
+- **Rotation resumes.** A version left `pending` by an interrupted rotation is
+  activated instead of creating another at the provider. The provider call and
+  the registration are not one transaction, so a crash between them leaves at
+  worst an unused version at the provider.
+- **The re-wrap does not stop at a bad key.** A data key that cannot be moved
+  is counted and reported, the rest are moved, and the run is not `done`, so a
+  version that is still referenced is not retired. Overlapping runs are safe:
+  the compare-and-set makes one the winner and the other count the key as
+  already moved.
+- **Rollback** reactivates the most recent decrypt-only version and demotes the
+  active one in the same transaction. Data keys wrapped under the demoted
+  version still unwrap under it.
+- **A backup requirement waits.** Where policy requires a verified backup and
+  the keyring's backup is not acknowledged as current, rotation is refused with
+  `ErrBackupStale`, and is refused with `ErrBackupUnknown` if the provider
+  cannot say. It fails closed.
 
 ### Retained versions
 
