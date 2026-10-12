@@ -268,7 +268,13 @@ func (c *Client) encrypt(ctx context.Context, purpose Purpose, subject string, p
 			return nil, err
 		}
 		if h.rec.State != DEKActive {
-			return nil, fmt.Errorf("%w: the current data key is %s", ErrKeyUnusable, h.rec.State)
+			// The current key was marked compromised or destroyed. Writing
+			// moves to a new epoch; the old key stays readable as policy
+			// allows, so what it protects can be re-encrypted.
+			if _, err := c.advance(ctx, purpose, subject, cfg, h.rec.Epoch); err != nil {
+				return nil, err
+			}
+			continue
 		}
 		if err := c.sel.CheckWrite(h.rec.Algorithm, cfg.Algorithms); err != nil {
 			return nil, err

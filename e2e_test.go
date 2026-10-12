@@ -256,3 +256,45 @@ func TestEndToEndRestartAndReplicas(t *testing.T) {
 		})
 	}
 }
+
+// TestEndToEndCompromisedCurrentKeyIsReplacedOnWrite checks the first step of
+// the emergency procedure for an exposed data key: once the current key is
+// marked compromised, the next write moves to a new epoch, and what the old
+// key protects stays readable so it can be re-encrypted.
+func TestEndToEndCompromisedCurrentKeyIsReplacedOnWrite(t *testing.T) {
+	for name, mk := range providerStyles() {
+		t.Run(name, func(t *testing.T) {
+			s := newStack(t, mk)
+			c := s.newCl()
+			old, err := c.Encrypt(bg, testPurpose, []byte("exposed"), []byte("ctx"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := s.reg.MarkDEK(bg, old.DEKID, keyforge.DEKCompromised); err != nil {
+				t.Fatal(err)
+			}
+
+			fresh := s.newCl() // a process that has not cached the old state
+			next, err := fresh.Encrypt(bg, testPurpose, []byte("after"), []byte("ctx"))
+			if err != nil {
+				t.Fatalf("Encrypt after the current key was compromised: %v", err)
+			}
+			if next.DEKID == old.DEKID {
+				t.Fatal("the write used the compromised key")
+			}
+
+			// The compromised key still reads, and reports itself stale.
+			pt, info, err := fresh.Decrypt(bg, testPurpose, old, []byte("ctx"))
+			if err != nil || string(pt) != "exposed" {
+				t.Fatalf("Decrypt under the compromised key = %q, %v", pt, err)
+			}
+			if !info.Stale {
+				t.Fatalf("info = %+v, want Stale", info)
+			}
+			renewed, err := fresh.Reencrypt(bg, testPurpose, old, []byte("ctx"))
+			if err != nil || renewed.DEKID != next.DEKID {
+				t.Fatalf("Reencrypt = %+v, %v, want it under the new key", renewed, err)
+			}
+		})
+	}
+}
