@@ -50,7 +50,8 @@ If the code and the TRD disagree, resolve it in the TRD in the same change.
   (`omniworkflow`, `omniworkflow/inmemory`, `omniworkflow/durable`), which
   import only the standard library. The `jobs` package is the only place they
   are imported. Temporal, Step Functions, ORM and cloud SDK code lives in
-  separate packages or modules, and a host chooses its provider.
+  separate packages or modules, and a host chooses its provider. Cobra is
+  imported only by `cli` and `cmd/keyforge`.
 - **Time and randomness are injected** (a clock, an entropy reader) so tests
   are deterministic.
 - **Public-ready.** This repository is public: write code, comments, docs and
