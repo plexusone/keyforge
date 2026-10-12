@@ -11,8 +11,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
+
+	"github.com/grokify/oscompat/fs"
 )
 
 // RootKeySize is the size in bytes of a root key.
@@ -95,14 +96,12 @@ func (s fileSource) RootKey(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("%w: %w", ErrRootKeyUnavailable, err)
 	}
 	defer f.Close()
-	if runtime.GOOS != "windows" {
-		info, err := f.Stat()
-		if err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrRootKeyUnavailable, err)
-		}
-		if info.Mode().Perm()&0o077 != 0 {
-			return nil, fmt.Errorf("%w: %s has mode %04o", ErrInsecureRootKeyFile, s.path, info.Mode().Perm())
-		}
+	info, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrRootKeyUnavailable, err)
+	}
+	if !fs.IsPrivate(info) {
+		return nil, fmt.Errorf("%w: %s has mode %04o", ErrInsecureRootKeyFile, s.path, info.Mode().Perm())
 	}
 	text, err := io.ReadAll(io.LimitReader(f, 1024))
 	if err != nil {

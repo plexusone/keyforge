@@ -7,9 +7,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/grokify/oscompat/fs"
 )
 
 func key32(b byte) []byte { return bytes.Repeat([]byte{b}, RootKeySize) }
@@ -83,7 +84,7 @@ func TestFileSource(t *testing.T) {
 	if _, err := FileSource(filepath.Join(dir, "missing")).RootKey(bg); !errors.Is(err, ErrRootKeyUnavailable) {
 		t.Fatalf("missing file: %v, want ErrRootKeyUnavailable", err)
 	}
-	if runtime.GOOS != "windows" {
+	if fs.PermissionsEnforced() {
 		if err := os.Chmod(path, 0o640); err != nil {
 			t.Fatal(err)
 		}

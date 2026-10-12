@@ -9,10 +9,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"sync"
 	"testing"
+
+	"github.com/grokify/oscompat/fs"
 
 	"github.com/plexusone/keyforge/algorithm"
 	"github.com/plexusone/keyforge/provider"
@@ -177,7 +178,7 @@ func TestFileModeAndNoRootKeyOnDisk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if runtime.GOOS != "windows" {
+	if fs.PermissionsEnforced() {
 		info, err := os.Stat(opts.Path)
 		if err != nil || info.Mode().Perm() != 0o600 {
 			t.Fatalf("keyring mode = %v, %v, want 0600", info.Mode().Perm(), err)
@@ -217,7 +218,7 @@ func TestFileModeAndNoRootKeyOnDisk(t *testing.T) {
 }
 
 func TestInsecureKeyringIsRefused(t *testing.T) {
-	if runtime.GOOS == "windows" {
+	if !fs.PermissionsEnforced() {
 		t.Skip("file modes are not enforced on Windows")
 	}
 	opts := newOpts(t, 1)

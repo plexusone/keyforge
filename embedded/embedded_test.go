@@ -8,9 +8,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
+
+	"github.com/grokify/oscompat/fs"
 
 	"github.com/plexusone/keyforge"
 	"github.com/plexusone/keyforge/embedded"
@@ -300,7 +301,7 @@ func TestMissingRegistryBesideAKeyringIsNotAFreshStart(t *testing.T) {
 }
 
 func TestFilesAreOwnerOnly(t *testing.T) {
-	if runtime.GOOS == "windows" {
+	if !fs.PermissionsEnforced() {
 		t.Skip("file modes are not enforced on Windows")
 	}
 	dir := filepath.Join(t.TempDir(), "state")

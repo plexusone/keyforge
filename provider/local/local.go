@@ -30,10 +30,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/grokify/oscompat/fs"
 
 	"github.com/plexusone/keyforge/algorithm"
 	"github.com/plexusone/keyforge/envelope"
@@ -239,7 +240,7 @@ func (p *Provider) read() (*state, uint64, error) {
 		}
 		return nil, 0, fmt.Errorf("local: %w", err)
 	}
-	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
+	if !fs.IsPrivate(info) {
 		return nil, 0, fmt.Errorf("%w: %s has mode %04o", ErrInsecurePermissions, p.path, info.Mode().Perm())
 	}
 	file, err := os.ReadFile(p.path)
@@ -682,7 +683,7 @@ func atomicWrite(path string, data []byte, hook func(string) error) error {
 	if err := stage("temp-created"); err != nil {
 		return cleanup(err)
 	}
-	if err := tmp.Chmod(0o600); err != nil && runtime.GOOS != "windows" {
+	if err := fs.ChmodPrivate(tmp); err != nil {
 		return cleanup(fmt.Errorf("local: %w", err))
 	}
 	if _, err := tmp.Write(data); err != nil {
@@ -707,7 +708,7 @@ func atomicWrite(path string, data []byte, hook func(string) error) error {
 	if err := stage("renamed"); err != nil {
 		return err
 	}
-	if err := syncDir(dir); err != nil {
+	if err := fs.SyncDir(dir); err != nil {
 		return fmt.Errorf("local: flushing the keyring directory: %w", err)
 	}
 	return stage("dir-synced")
@@ -733,4 +734,20 @@ func removeStaleTemps(path string) {
 			_ = os.Remove(filepath.Join(dir, e.Name())) //nolint:errcheck // best-effort cleanup of an abandoned temporary file
 		}
 	}
+}
+
+// lockFile takes the exclusive advisory lock on the keyring's lock file and
+// returns the function that releases it. Waiting ends when ctx does, and then
+// the context's error is returned as it is. Where the platform has no file
+// locking it fails: the provider does not write a keyring that another process
+// could interleave with.
+func lockFile(ctx context.Context, path string) (func(), error) {
+	unlock, err := fs.Lock(ctx, path)
+	if err != nil {
+		if cerr := ctx.Err(); cerr != nil {
+			return nil, cerr
+		}
+		return nil, fmt.Errorf("local: locking the keyring: %w", err)
+	}
+	return unlock, nil
 }
