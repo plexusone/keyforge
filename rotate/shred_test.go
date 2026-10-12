@@ -233,3 +233,14 @@ func TestRequestShredValidatesAndIsIdempotent(t *testing.T) {
 		t.Errorf("ShredStatus of an unknown subject = %v", err)
 	}
 }
+
+func TestRequestShredRefusesAPurposeWithNoKey(t *testing.T) {
+	w := newWorld(t, setup{})
+	_, err := w.rot.RequestShred(bg, "ordres", "alice")
+	if !errors.Is(err, keyforge.ErrKEKNotFound) {
+		t.Fatalf("RequestShred under a mistyped purpose = %v, want ErrKEKNotFound", err)
+	}
+	if shreds, err := w.store.ListShreds(bg); err != nil || len(shreds) != 0 {
+		t.Fatalf("a tombstone was written for a purpose with no key: %v, %v", shreds, err)
+	}
+}

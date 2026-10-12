@@ -33,6 +33,11 @@ func (r *Rotator) RequestShred(ctx context.Context, purpose keyforge.Purpose, su
 	if err := keyforge.ValidateSubject(subject); err != nil {
 		return registry.ShredRecord{}, err
 	}
+	// A purpose that has no key is a mistake, such as a mistyped name, and an
+	// erasure "complete: no keys" for it would be a false assurance.
+	if _, err := r.store.KEKForPurpose(ctx, purpose); err != nil {
+		return registry.ShredRecord{}, fmt.Errorf("rotate: cannot shred under purpose %q: %w", string(purpose), err)
+	}
 	rec, err := r.store.ShredSubject(ctx, purpose, subject, r.clock.Now())
 	if err != nil {
 		return registry.ShredRecord{}, err
