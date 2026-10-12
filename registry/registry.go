@@ -153,8 +153,20 @@ type VersionRecord struct {
 	State       VersionState
 	ProviderRef string // the provider's identifier for this version, if it has one
 	CreatedAt   time.Time
+	ActivatedAt time.Time // when the version last became active
 	RotatedAt   time.Time // when the version stopped being active
 	RetireAfter time.Time // earliest time retirement may complete
+}
+
+// Sentinel is an envelope kept for one KEK version whose plaintext is a fixed,
+// non-secret marker. The disaster-recovery drill decrypts it to prove that a
+// restored registry and keyring can still use the version. It holds no key
+// material: it is a sealed envelope, as any stored ciphertext is.
+type Sentinel struct {
+	KEKID     envelope.ID
+	Version   uint32
+	Envelope  string // the envelope's text form
+	CreatedAt time.Time
 }
 
 // Ref returns the KEK version the record describes, resolved against kek.
@@ -193,6 +205,8 @@ var (
 	// ErrConflict is returned when a compare-and-set finds the record other
 	// than the caller expected.
 	ErrConflict = errors.New("registry: record changed")
+	// ErrSentinelNotFound is returned for a version that has no sentinel.
+	ErrSentinelNotFound = errors.New("registry: sentinel not found")
 )
 
 // TransitionError is returned for a forbidden state change. It matches
@@ -377,4 +391,13 @@ type Store interface {
 	// MarkDEK moves a data key to compromised or destroyed. A current key is
 	// demoted only by advancing the epoch.
 	MarkDEK(ctx context.Context, id envelope.ID, to keyforge.DEKState) error
+
+	// PutSentinel stores the sentinel for a KEK version. The version must
+	// exist. A version has one sentinel: storing an identical one again
+	// succeeds, and a different one is [ErrConflict].
+	PutSentinel(ctx context.Context, s Sentinel) error
+	// GetSentinel returns a version's sentinel, or [ErrSentinelNotFound].
+	GetSentinel(ctx context.Context, kekID envelope.ID, version uint32) (Sentinel, error)
+	// ListSentinels returns a KEK's sentinels in ascending version order.
+	ListSentinels(ctx context.Context, kekID envelope.ID) ([]Sentinel, error)
 }

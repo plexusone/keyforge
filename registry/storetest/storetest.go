@@ -82,6 +82,8 @@ func Cases() []Case {
 		{"MarkDEK", caseMarkDEK},
 		{"ActivationConcurrent", caseActivationConcurrent},
 		{"RecordsAreCopies", caseCopies},
+		{"ActivationTimeIsRecorded", caseActivationTime},
+		{"Sentinels", caseSentinels},
 		{"CancelledContextChangesNothing", caseCancelled},
 	}
 }
@@ -1018,5 +1020,79 @@ func caseCancelled(t TB, s registry.Store) {
 	}
 	if _, err := s.CurrentDEK(bg, "payments", ""); !errors.Is(err, keyforge.ErrDEKNotFound) {
 		t.Errorf("a cancelled AdvanceDEK stored a key: %v", err)
+	}
+}
+
+func caseActivationTime(t TB, s registry.Store) {
+	t.Helper()
+	k := newKEK(t, s, "orders")
+	addVersion(t, s, k, 1)
+	addVersion(t, s, k, 2)
+
+	v, err := s.GetVersion(bg, k.ID, 1)
+	if err != nil || !v.ActivatedAt.IsZero() {
+		t.Fatalf("a pending version has ActivatedAt %v, %v", v.ActivatedAt, err)
+	}
+	activate(t, s, k, 1, 10)
+	activate(t, s, k, 2, 20)
+	v1, _ := s.GetVersion(bg, k.ID, 1)
+	v2, _ := s.GetVersion(bg, k.ID, 2)
+	if !v1.ActivatedAt.Equal(at(10)) || !v2.ActivatedAt.Equal(at(20)) {
+		t.Errorf("ActivatedAt = %v and %v, want the activation times", v1.ActivatedAt, v2.ActivatedAt)
+	}
+	if !v1.RotatedAt.Equal(at(20)) {
+		t.Errorf("version 1 RotatedAt = %v, want when version 2 took over", v1.RotatedAt)
+	}
+	// A rollback is an activation: the interval is measured from it.
+	transition(t, s, k, 1, registry.VersionActive, registry.TransitionOptions{At: at(30)})
+	v1, _ = s.GetVersion(bg, k.ID, 1)
+	if !v1.ActivatedAt.Equal(at(30)) {
+		t.Errorf("after a rollback ActivatedAt = %v, want %v", v1.ActivatedAt, at(30))
+	}
+}
+
+func caseSentinels(t TB, s registry.Store) {
+	t.Helper()
+	k := kekWithActive(t, s, "orders")
+	addVersion(t, s, k, 2)
+
+	if _, err := s.GetSentinel(bg, k.ID, 1); !errors.Is(err, registry.ErrSentinelNotFound) {
+		t.Errorf("GetSentinel before one is stored = %v, want ErrSentinelNotFound", err)
+	}
+	one := registry.Sentinel{KEKID: k.ID, Version: 1, Envelope: "kf1.AAAA", CreatedAt: at(1)}
+	if err := s.PutSentinel(bg, one); err != nil {
+		t.Fatalf("PutSentinel: %v", err)
+	}
+	if err := s.PutSentinel(bg, one); err != nil {
+		t.Errorf("storing the same sentinel again = %v, want success", err)
+	}
+	other := one
+	other.Envelope = "kf1.BBBB"
+	if err := s.PutSentinel(bg, other); !errors.Is(err, registry.ErrConflict) {
+		t.Errorf("storing a different sentinel = %v, want ErrConflict", err)
+	}
+	if err := s.PutSentinel(bg, registry.Sentinel{KEKID: k.ID, Version: 9, Envelope: "kf1.CCCC"}); !errors.Is(err, registry.ErrVersionNotFound) {
+		t.Errorf("a sentinel for a missing version = %v, want ErrVersionNotFound", err)
+	}
+	if err := s.PutSentinel(bg, registry.Sentinel{KEKID: nextID(), Version: 1, Envelope: "kf1.CCCC"}); !errors.Is(err, keyforge.ErrKEKNotFound) {
+		t.Errorf("a sentinel for a missing KEK = %v, want ErrKEKNotFound", err)
+	}
+	if err := s.PutSentinel(bg, registry.Sentinel{KEKID: k.ID, Version: 2}); !errors.Is(err, registry.ErrInvalid) {
+		t.Errorf("a sentinel with no envelope = %v, want ErrInvalid", err)
+	}
+
+	if err := s.PutSentinel(bg, registry.Sentinel{KEKID: k.ID, Version: 2, Envelope: "kf1.DDDD", CreatedAt: at(2)}); err != nil {
+		t.Fatalf("%v", err)
+	}
+	got, err := s.GetSentinel(bg, k.ID, 1)
+	if err != nil || got != one {
+		t.Errorf("GetSentinel = %+v, %v, want %+v", got, err, one)
+	}
+	list, err := s.ListSentinels(bg, k.ID)
+	if err != nil || len(list) != 2 || list[0].Version != 1 || list[1].Version != 2 {
+		t.Errorf("ListSentinels = %+v, %v, want versions 1 then 2", list, err)
+	}
+	if _, err := s.ListSentinels(bg, nextID()); !errors.Is(err, keyforge.ErrKEKNotFound) {
+		t.Errorf("ListSentinels for an unknown KEK = %v", err)
 	}
 }

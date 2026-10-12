@@ -41,6 +41,7 @@ type Store struct {
 	versions map[envelope.ID]map[uint32]registry.VersionRecord
 	deks     map[envelope.ID]keyforge.DEKRecord
 	current  map[scope]envelope.ID
+	sentinel map[envelope.ID]map[uint32]registry.Sentinel
 	defect   defect
 }
 
@@ -56,6 +57,7 @@ func NewStore() *Store {
 		versions: map[envelope.ID]map[uint32]registry.VersionRecord{},
 		deks:     map[envelope.ID]keyforge.DEKRecord{},
 		current:  map[scope]envelope.ID{},
+		sentinel: map[envelope.ID]map[uint32]registry.Sentinel{},
 	}
 }
 
@@ -293,6 +295,7 @@ func (s *Store) TransitionVersion(ctx context.Context, kekID envelope.ID, versio
 		return &registry.TransitionError{From: from, To: to}
 
 	case to == registry.VersionActive:
+		cur.ActivatedAt = opts.At
 		if from == registry.VersionDecryptOnly && s.defect != defectAnyRollback {
 			var latest uint32
 			for n, v := range vs {
@@ -554,4 +557,68 @@ func (s *Store) MarkDEK(ctx context.Context, id envelope.ID, to keyforge.DEKStat
 	rec.State = to
 	s.deks[id] = rec
 	return nil
+}
+
+// PutSentinel implements [registry.Store].
+func (s *Store) PutSentinel(ctx context.Context, sn registry.Sentinel) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if sn.Envelope == "" {
+		return fmt.Errorf("%w: a sentinel needs an envelope", registry.ErrInvalid)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.versions[sn.KEKID]; !ok {
+		return kekNotFound(sn.KEKID)
+	}
+	if _, ok := s.versions[sn.KEKID][sn.Version]; !ok {
+		return fmt.Errorf("%w: %s version %d", registry.ErrVersionNotFound, sn.KEKID, sn.Version)
+	}
+	if have, ok := s.sentinel[sn.KEKID][sn.Version]; ok {
+		if have.Envelope == sn.Envelope {
+			return nil
+		}
+		return fmt.Errorf("%w: version %d already has a different sentinel", registry.ErrConflict, sn.Version)
+	}
+	if s.sentinel[sn.KEKID] == nil {
+		s.sentinel[sn.KEKID] = map[uint32]registry.Sentinel{}
+	}
+	s.sentinel[sn.KEKID][sn.Version] = sn
+	return nil
+}
+
+// GetSentinel implements [registry.Store].
+func (s *Store) GetSentinel(ctx context.Context, kekID envelope.ID, version uint32) (registry.Sentinel, error) {
+	if err := ctx.Err(); err != nil {
+		return registry.Sentinel{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.versions[kekID]; !ok {
+		return registry.Sentinel{}, kekNotFound(kekID)
+	}
+	sn, ok := s.sentinel[kekID][version]
+	if !ok {
+		return registry.Sentinel{}, fmt.Errorf("%w: %s version %d", registry.ErrSentinelNotFound, kekID, version)
+	}
+	return sn, nil
+}
+
+// ListSentinels implements [registry.Store].
+func (s *Store) ListSentinels(ctx context.Context, kekID envelope.ID) ([]registry.Sentinel, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.versions[kekID]; !ok {
+		return nil, kekNotFound(kekID)
+	}
+	out := make([]registry.Sentinel, 0, len(s.sentinel[kekID]))
+	for _, sn := range s.sentinel[kekID] {
+		out = append(out, sn)
+	}
+	slices.SortFunc(out, func(a, b registry.Sentinel) int { return int(a.Version) - int(b.Version) }) //nolint:gosec // G115: orders a listing
+	return out, nil
 }
