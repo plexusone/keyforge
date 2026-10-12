@@ -509,6 +509,11 @@ include `key.created`, `key.rotated`, `key.activated`, `key.rolled_back`,
 Ordinary encrypt and decrypt are not logged individually; their rates and
 failures are metered.
 
+Metrics go through a small `Metrics` interface in the core (counters and
+gauges for operation rates, failures, cache hits, overdue keys and drill
+outcomes), with a no-op default. An OpenTelemetry adapter, if added, lives in
+a separate module so the core keeps its dependency rule.
+
 ## Control plane
 
 - **Service:** HTTP handlers for key listing, status, rotate, request
@@ -586,8 +591,10 @@ AES-256-GCM, which both profiles approve.
   non-approved algorithm is implemented or in scope.
 - **FIPS-clean by construction.** Because the one algorithm is approved
   (AES-256-GCM through `NewGCMWithRandomNonce`), the code stays valid under
-  `GODEBUG=fips140=only`. A FIPS-only CI job is added when FIPS operation is
-  first required; it is not a gate for v0.1.0.
+  `GODEBUG=fips140=only`. A CI job runs the tests under
+  `GODEBUG=fips140=only` from the first phase so the property is checked
+  rather than assumed. It is non-gating until FIPS operation is first
+  required, and gating from then on.
 - Symmetric wrapping needs no post-quantum change. Asymmetric KEKs, when
   added, are hybrid KEMs through `crypto/hpke`, `MLKEM768X25519` in
   the `standard` profile and `MLKEM768P256` in `fips`. Signing keys move to
@@ -693,6 +700,15 @@ evidence on claims and do not edit the inventory.
 - **Crash tests:** killing the process during a keyring write and during a
   re-wrap batch leaves a consistent, resumable state.
 - **Race detector** on the cache, scheduler and store.
+- **Injected time and randomness.** The `Client`, policy, scheduler and drill
+  take a clock, and DEK and key generation take an entropy reader, so tests
+  are deterministic. GCM nonces come from `NewGCMWithRandomNonce` and cannot
+  be injected; the known-answer vectors therefore fix the open path (decrypt
+  a published envelope), and the seal path is tested by round trip.
+- **Scale benchmark** for success criterion 2: a KEK rotation over a store
+  holding a million wrapped DEKs completes, and concurrent reads succeed
+  throughout.
+- **FIPS-only run** of the test suite under `GODEBUG=fips140=only` in CI.
 
 ## Integration
 
