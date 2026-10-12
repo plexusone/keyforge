@@ -1,0 +1,44 @@
+name: Go FIPS 140 only
+permissions:
+  contents: read
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/go-fips.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/go-fips.yaml'
+  workflow_dispatch:
+
+jobs:
+  fips-only:
+    name: tests under GODEBUG=fips140=only
+    runs-on: ubuntu-latest
+    # Non-gating until FIPS-only operation is first required. The job exists so
+    # the property that the code stays valid in that mode is checked and not
+    # assumed.
+    continue-on-error: true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Run tests
+        env:
+          GODEBUG: fips140=only
+        run: go test -count=1 ./...
