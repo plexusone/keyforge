@@ -625,6 +625,29 @@ func (c *Client) advance(ctx context.Context, purpose Purpose, subject string, c
 	return winner, nil
 }
 
+// AdvanceEpoch creates the next data key epoch for a purpose and subject now,
+// rather than waiting for the volume or age trigger, and returns the record
+// that is current afterwards. The previous current key becomes decrypt-only.
+// It is the first step of replacing an exposed key: writes move to the new
+// epoch at once, and the old one stays readable so what it protects can be
+// re-encrypted.
+func (c *Client) AdvanceEpoch(ctx context.Context, purpose Purpose, subject string) (DEKRecord, error) {
+	cfg, err := c.purposeConfig(purpose)
+	if err != nil {
+		return DEKRecord{}, err
+	}
+	var from uint32
+	cur, err := c.store.CurrentDEK(ctx, purpose, subject)
+	switch {
+	case err == nil:
+		from = cur.Epoch
+	case errors.Is(err, ErrDEKNotFound):
+	default:
+		return DEKRecord{}, fmt.Errorf("%w: %w", ErrKeyUnavailable, err)
+	}
+	return c.advance(ctx, purpose, subject, cfg, from)
+}
+
 // handleFor returns the usable handle for a record, unwrapping its key through
 // the provider only when it is not cached.
 func (c *Client) handleFor(ctx context.Context, rec DEKRecord) (*dekHandle, error) {

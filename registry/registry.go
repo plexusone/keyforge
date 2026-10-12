@@ -389,7 +389,8 @@ type Store interface {
 	// safe. The target must be active.
 	RewrapDEK(ctx context.Context, r Rewrap) error
 	// MarkDEK moves a data key to compromised or destroyed. A current key is
-	// demoted only by advancing the epoch.
+	// demoted only by advancing the epoch. Destroying a key removes its wrapped
+	// value; the record remains.
 	MarkDEK(ctx context.Context, id envelope.ID, to keyforge.DEKState) error
 
 	// PutSentinel stores the sentinel for a KEK version. The version must

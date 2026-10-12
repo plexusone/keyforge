@@ -65,6 +65,9 @@ type Request struct {
 	Purpose keyforge.Purpose
 	KEKID   envelope.ID
 	Version uint32
+	// DEKID names the data key when the request is about one, in place of a
+	// KEK version.
+	DEKID envelope.ID
 	// Actor is who asked, as the host named them, if anyone.
 	Actor string
 	// References is how many data keys in the registry are still wrapped under

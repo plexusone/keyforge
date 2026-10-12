@@ -902,6 +902,9 @@ func caseMarkDEK(t TB, s registry.Store) {
 	if err := s.MarkDEK(bg, cur.ID, keyforge.DEKDestroyed); err != nil {
 		t.Errorf("compromised to destroyed = %v", err)
 	}
+	if got, err := s.GetDEK(bg, cur.ID); err != nil || got.State != keyforge.DEKDestroyed || len(got.Wrapped) != 0 {
+		t.Errorf("a destroyed data key = %+v, %v, want the record kept and its wrapped value removed", got, err)
+	}
 	if err := s.MarkDEK(bg, cur.ID, keyforge.DEKCompromised); !errors.Is(err, registry.ErrInvalidTransition) {
 		t.Errorf("destroyed to compromised = %v, want ErrInvalidTransition", err)
 	}

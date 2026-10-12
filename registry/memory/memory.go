@@ -570,6 +570,11 @@ func (s *Store) MarkDEK(ctx context.Context, id envelope.ID, to keyforge.DEKStat
 		return err
 	}
 	rec.State = to
+	if to == keyforge.DEKDestroyed {
+		// Destroying a data key removes its wrapped value. The record stays, as
+		// the trail of what existed.
+		rec.Wrapped = nil
+	}
 	s.deks[id] = rec
 	return nil
 }
