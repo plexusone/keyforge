@@ -35,7 +35,7 @@ the data keys protect, and the ability to destroy keys.
 | Availability | Provider or registry outage | A cache; beyond it, operations fail closed and say so; reads are unaffected by a write-side outage |
 | Data under retention | Premature destruction | A separate guard consulted at retirement and again at destruction; a delay; every outcome audited |
 | Rotation | A restored stale backup loses data | Keyring generation and backup acknowledgement; rotation can wait on it |
-| Erasure | A backup restores a shredded key | A shred is complete only when every key version that ever wrapped the subject's keys is destroyed |
+| Erasure | A backup restores a shredded key | A shred is complete only when every key version that ever wrapped the subject's keys is destroyed in the live keyring. Backups are the operator's: see the limitations |
 | Control plane | Unauthorized rotation or destruction | Host-supplied authorizer on every action; audit of administrative reads |
 | Logs | Key material in an error or event | Key material never leaves its owner: it is not logged, not in errors and not in audit events |
 
@@ -63,6 +63,19 @@ the set and never widen it. The code stays valid under
 - **Scheduling depends on the host clock.**
 - **Inline objects are invisible to the registry.** Retiring a version relies on
   the host's statement that nothing outside the registry needs it.
+- **A restore can undo an erasure.** Shreds and tombstones live in the registry;
+  restoring an older registry resurrects the subject's keys, and a keyring
+  backup holds destroyed versions' material. Erasure is complete for the live
+  system only.
+- **A restore under a running process.** An older keyring copy put in place
+  while the process runs is refused at the next write and at the next open, but
+  the process keeps using its in-memory copy until restarted. Stop the process
+  before restoring.
+- **Unauthenticated envelopes cost work.** A parsed inline envelope with an
+  unseen key reference makes a registry call and a provider unwrap, and bogus
+  versions can evict cache entries. This cannot disclose a key.
+- **Inline wraps are not counted** against the key-encryption key version they
+  are wrapped under.
 - **Erasure takes as long as key retirement.** A shred is complete only when the
   key versions that wrapped the subject's keys are destroyed; until then a
   restored registry backup can recover the data.

@@ -83,7 +83,11 @@ under them.
 - **Rotate it** when someone who held it leaves or a copy may have been seen:
   `Keyring.RotateRootKey(ctx, next)` re-encrypts the keyring under the new
   root key in one atomic write. Update the source the process reads from, and
-  both stored copies, before the next restart.
+  both stored copies, before the next restart. This protects the keyring file
+  from now on. It does not rotate any key-encryption key: a keyring copy taken
+  earlier, together with the old root key, still yields live keys, so after a
+  suspected exposure of the root key also rotate the key-encryption keys and
+  retire the old versions.
 
 A wrong root key is refused with `ErrWrongRootKey` before anything is
 decrypted, so a mistake is reported as what it is and not as a corrupt file.
@@ -115,13 +119,18 @@ keyforge backup ack local --generation 14 --note "offsite bucket, daily"
 ```
 
 With `RequireBackup` set, a rotation waits until the acknowledgement catches up.
-That is the point: a copy that predates a rotation would otherwise lose data
-wrapped under the newer version.
+What it guarantees is narrow: a rotation does not start while the previous
+keyring generation is unbacked, so unbacked rotations cannot pile up. It does
+not protect the new version itself. A disk lost right after a rotation loses
+what was wrapped under the new version, whatever the setting, so take and
+acknowledge a copy straight after every rotation.
 
 ### Restoring
 
-Restore the keyring and the registry from the same backup, and open with
-`AcceptRollback: true`. Without it, a keyring older than one this host has seen
+**Stop the process first**, then restore the keyring and the registry from the
+same backup, and open with `AcceptRollback: true`. A keyring file replaced
+under a running process is refused at the next write, but the process keeps its
+in-memory copy until it restarts. Without it, a keyring older than one this host has seen
 is refused with `ErrKeyringRolledBack`, naming both generations, so that a stale
 copy is never used by mistake.
 
@@ -131,6 +140,12 @@ cannot be decrypted. Back up the registry as often as you can afford to lose
 data written between backups; on PostgreSQL, point-in-time recovery closes the
 gap. A keyring copy is cheap and changes only on rotation, so acknowledge a fresh
 one after every rotation.
+
+**A restore can undo an erasure.** Shredded subjects, their tombstones and the
+destroyed state of their data keys live in the registry, so restoring a
+registry backup taken before a shred brings the subject's keys back and removes
+the tombstone. Keep a record of requested erasures outside the registry, and
+repeat them after any restore. keyforge does not replay them.
 
 After a restore, run `keyforge verify`, then `keyforge status`.
 
@@ -162,15 +177,19 @@ keyforge destroy <kek> <version>           # destroy the material, if the guard 
 ```
 
 A retired version is not usable even before its material is destroyed, so
-retiring has an effect on its own. Destruction is irreversible: after it, only a
-backup that holds the keyring can bring the version back.
+retiring has an effect on its own, and data wrapped under it outside the
+registry becomes unreadable at retirement, not at destruction. Destruction is
+irreversible: after it, only a backup that holds the keyring can bring the
+version back.
 
 The guard is yours to write. It sees the action, the purpose, the version, how
 many registry data keys still reference it, and who asked, and returns allow,
 deny or pending. It exists to know what keyforge cannot: that an export, a
 snapshot or a backup somewhere still needs the version, or that data is under a
-legal hold. A deny returns the version to service with the denial recorded; a
-guard that fails, or is absent, advances nothing.
+legal hold. A deny at retirement returns the version to service with the denial recorded.
+A deny at destruction leaves the version retired: it can no longer be used, and
+only destruction remains for it, so the guard's useful veto is the one at
+retirement. A guard that fails, or is absent, advances nothing.
 
 ## Data outside the registry
 
@@ -239,14 +258,21 @@ not be one.
 
 The erasure is **not complete** until every key-encryption key version that ever
 wrapped one of the subject's keys is destroyed, because a registry backup taken
-earlier still holds them wrapped under one of those versions. `shred status`
+earlier still holds them wrapped under one of those versions. "Complete" speaks
+for the live system only: a keyring backup taken before the versions were
+destroyed still holds their material, and together with a registry backup from
+before the shred it recovers the subject. Expire keyring and registry backups
+from before an erasure on the same schedule as the erasure. `shred status`
 lists the versions outstanding and an expected date. With the defaults that is
 more than two years for a version that is active today, plus your backup
 retention. A purpose that needs faster erasure sets a shorter `KEKInterval`.
 
 A client that has the subject's key cached keeps using it until the entry
 expires or `Client.Purge` is called; purge the clients if the erasure must be
-effective immediately.
+effective immediately. That covers writes as well as reads: a process holding
+the key goes on writing under it, and nothing it writes can be read by another
+process or after a restart. Shredding a purpose that is not per-subject erases
+nothing, and a purpose with no key is refused.
 
 ## Limits to plan around
 
@@ -255,6 +281,13 @@ effective immediately.
 - The durable job state is for one process. Several replicas sharing a registry
   need a shared job provider; the keyforge scheduler works with any OmniWorkflow
   provider.
+- Inline-mode objects each wrap a fresh data key under the active key-encryption
+  key version with a random nonce, and there is no count of wraps per version.
+  Keep a version's inline writes well under 2³² by rotating on a schedule that
+  fits your volume.
+- Another process that destroys a key version does not take effect in a
+  running provider that has already loaded its material until that provider
+  reloads; destruction is not instant across processes.
 - keyforge depends on the host clock for scheduling. A clock set far ahead
   makes rotations and retirement delays come due early.
 - Go cannot lock or reliably zero memory: cached keys can appear in a memory

@@ -186,7 +186,7 @@ for behaviour.
 |---|---|---|---|
 | `active` | yes | yes | The current epoch for a purpose and subject |
 | `decrypt-only` | no | yes | A superseded epoch |
-| `compromised` | no | yes | Marked by an operator; readable so what it protects can be re-encrypted. A compromised current key is replaced on the next write |
+| `compromised` | no | yes | Marked by an operator; readable so what it protects can be re-encrypted. A compromised current key is replaced on the next write after a client's cached view of it expires (at most the cache TTL), and data under it is reported stale |
 | `destroyed` | no | no | No usable wrapped key |
 
 A current key is demoted only by advancing the epoch, never by marking it
@@ -1217,6 +1217,32 @@ Results flow back as evidence on claims and do not edit the inventory.
 - A subject shred is complete only when every KEK version that wrapped the
   subject's DEKs is destroyed; until then a restored registry backup can
   recover the data.
+- A shred is complete for the live system only. Shreds and tombstones live in
+  the registry, so restoring an older registry resurrects the subject's keys,
+  and a keyring backup taken before the versions were destroyed still holds
+  their material. Operators expire such backups on the erasure's schedule and
+  keep a record of requested erasures outside the registry.
+- A client holding a cached key for a shredded subject goes on writing under it
+  until the entry expires or `Purge` is called, and what it writes cannot be
+  read elsewhere. `Purge` covers reads and writes, and in-flight operations do
+  not repopulate the caches afterwards.
+- A keyring copied over the file under a running provider is refused at the
+  next write and at the next open, but the provider keeps its in-memory copy
+  until restarted; restores are done with the process stopped.
+- Inline wraps are not counted per KEK version; the nonce bound for one
+  key-encryption key version is the operator's to respect by rotating on a
+  schedule that fits the inline volume.
+- Unauthenticated inline envelopes cost a registry call and a provider unwrap
+  and can evict cache entries; they cannot disclose a key.
+- A guard's denial at destruction leaves a version retired, not in service; the
+  veto that returns a version to service is the one at retirement.
+- A retained-backup requirement gates the previous keyring generation, not the
+  new version: a disk lost straight after a rotation loses what was wrapped
+  under the new version.
+- Rotating the root key re-encrypts the keyring and rotates no
+  key-encryption key.
+- A provider process keeps the material of a version another process has
+  destroyed until it reloads the keyring.
 
 ## Testing
 
