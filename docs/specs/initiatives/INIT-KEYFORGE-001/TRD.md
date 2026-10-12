@@ -46,7 +46,9 @@ Implements the [PRD](PRD.md).
 | `provider` | `Provider` interface, `KeyRef` and `KeySpec` (the root package re-exports them) |
 | `provider/providertest` | The conformance suite every provider runs |
 | `provider/local` | The keyring-file provider |
-| `registry` | `Store` interface, in-memory implementation, key state machine |
+| `registry` | `Store` (the client's `keyforge.Store` plus key and version administration), record types, the key-version and data-key transition tables |
+| `registry/memory` | In-memory store, the reference the SQL store is compared against |
+| `registry/storetest` | The store conformance suite |
 | `store/ent` | SQLite and PostgreSQL store (separate module so the core has no ORM dependency) |
 | `policy` | Rotation, epoch and retirement policy per purpose |
 | `rotate` | The scheduler and jobs |
@@ -99,12 +101,58 @@ every one and checks that every pair not listed is refused with a typed error.
 | `active`, `decrypt-only`, `retire-requested` | `compromised` | Operator marks it | `key.compromised` |
 | `compromised` | `retired` | Emergency procedure, after re-wrap | `key.retired` |
 
-- Exactly one version per KEK is `active` after every transaction.
+- At most one version per KEK is `active`, and exactly one once the first has
+  been activated. A KEK whose only active version is marked `compromised` has
+  none until another is activated, and wrapping fails closed meanwhile.
 - A rollback demotes the newer version to `decrypt-only`; it does not
   compromise it, so data written under it stays readable.
 - Nothing leaves `retired`, `destroyed` or `compromised` except as listed.
   Material retired by mistake is recovered only through the restore
   procedure, never by a state change.
+
+### What the store enforces
+
+The registry enforces what can be enforced structurally and atomically, so no
+caller can violate it by mistake. Policy lives above it.
+
+- **The transition table**, for key versions and for data keys. A refused
+  transition changes nothing and is `ErrInvalidTransition`.
+- **One active version.** Activating a version demotes the previous one in the
+  same transaction. Demoting the active version directly is refused: a version
+  stops being active by another being activated.
+- **Rollback only to the most recent `decrypt-only` version**
+  (`ErrNoRollbackTarget`).
+- **Retirement needs its delay and no references.** `retire-requested` records
+  a `retire_after` later than the request; completing before it is
+  `ErrRetireDelay`; retiring or destroying while any data key is still wrapped
+  under the version is `ErrVersionReferenced`. An emergency retirement of a
+  `compromised` version skips the delay and not the reference check.
+- **A data key is wrapped under a usable version.** Advancing an epoch
+  requires a version that is `active`, or `decrypt-only` (a client holding a
+  cached view may wrap under a version that has just been rotated out, and the
+  re-wrap job moves it). Re-wrapping targets only an `active` version.
+- **Advancing and re-wrapping are compare-and-set.** Concurrent writers
+  converge on one key, and repeating a completed re-wrap succeeds, so a
+  resumed job is safe.
+- **The cap is exact.** Reservations are granted up to the limit and never past
+  it, to a current `active` key only, however many callers race.
+
+Not enforced by the store, because they are policy: how many versions to
+retain, when to rotate, and whether a guard allows a destruction.
+
+### Data key states
+
+| State | Write | Read | Notes |
+|---|---|---|---|
+| `active` | yes | yes | The current epoch for a purpose and subject |
+| `decrypt-only` | no | yes | A superseded epoch |
+| `compromised` | no | yes | Marked by an operator; readable so what it protects can be re-encrypted. A compromised current key is replaced on the next write |
+| `destroyed` | no | no | No usable wrapped key |
+
+A current key is demoted only by advancing the epoch, never by marking it
+directly. `active` to `compromised` and `decrypt-only` or `compromised` to
+`destroyed` are the only direct changes; a `compromised` key stays
+`compromised` when the epoch advances.
 
 ### Registry records
 
