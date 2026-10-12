@@ -34,6 +34,8 @@ func OpenSQLite(ctx context.Context, path string) (*Store, error) {
 	dsn := "file:" + strings.TrimPrefix(path, "file:") + "?" + q.Encode()
 	if path == ":memory:" {
 		dsn = "file::memory:?" + q.Encode()
+	} else if err := createPrivate(strings.TrimPrefix(path, "file:")); err != nil {
+		return nil, err
 	}
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -101,6 +103,26 @@ func (s *Store) Backup(ctx context.Context, path string) error {
 	//nolint:gosec // G202: the only input is a quoted file path, and a parameter is not allowed here
 	if _, err := s.db.ExecContext(ctx, "VACUUM INTO "+lit); err != nil {
 		return fmt.Errorf("sqlstore: backup: %w", err)
+	}
+	// The copy is created with the process's default mode, which is often
+	// readable by others, and it usually lands outside the private directory.
+	if err := os.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("sqlstore: backup: %w", err)
+	}
+	return nil
+}
+
+// createPrivate creates an empty database file readable by its owner only, if
+// there is none. SQLite gives its write-ahead log the mode of the database, so
+// this covers them as well. The registry holds wrapped keys and the identifiers
+// of subjects, and is not for other users.
+func createPrivate(path string) error {
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o600) //nolint:gosec // G304: the path is the caller's database file
+	if err != nil {
+		return fmt.Errorf("sqlstore: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("sqlstore: %w", err)
 	}
 	return nil
 }

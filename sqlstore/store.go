@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"strings"
 	"time"
@@ -54,7 +55,7 @@ const (
 )
 
 // maxAttempts bounds how often a transaction that lost a race is retried.
-const maxAttempts = 8
+const maxAttempts = 16
 
 // Store is a registry in a SQL database. It is safe for concurrent use.
 type Store struct {
@@ -129,10 +130,14 @@ func (s *Store) tx(ctx context.Context, fn func(tx *ent.Tx) error) error {
 		if err = s.once(ctx, fn); err == nil || !retryable(err) {
 			return err
 		}
+		// Linear backoff with jitter, so writers that collided do not collide
+		// again in step.
+		wait := time.Duration(attempt+1) * 5 * time.Millisecond
+		wait += rand.N(wait) //nolint:gosec // G404: jitter for backoff, not a secret
 		select {
 		case <-ctx.Done():
 			return errors.Join(ctx.Err(), err)
-		case <-time.After(time.Duration(attempt+1) * 5 * time.Millisecond):
+		case <-time.After(wait):
 		}
 	}
 	return err
