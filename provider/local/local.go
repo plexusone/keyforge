@@ -61,6 +61,11 @@ type Options struct {
 	// AllowRootKeyBesideKeyring permits a root key file in the keyring's
 	// directory. Leave it false outside tests.
 	AllowRootKeyBesideKeyring bool
+	// AcceptRollback opens a keyring that is older than one this host has
+	// seen, which is what restoring from backup produces. Set it only after
+	// confirming that the restore was intended; new writes continue from the
+	// highest generation seen, so generations are never reused.
+	AcceptRollback bool
 }
 
 // Provider is the keyring-file provider. It is safe for concurrent use, within
@@ -157,6 +162,9 @@ func Create(ctx context.Context, opts Options) (*Provider, error) {
 	if err := p.persist(st, 1); err != nil {
 		return nil, err
 	}
+	if err := p.notePersisted(1); err != nil {
+		return nil, err
+	}
 	p.st, p.gen = st, 1
 	return p, nil
 }
@@ -182,8 +190,38 @@ func Open(ctx context.Context, opts Options) (*Provider, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := p.checkRollback(ctx, gen, opts.AcceptRollback); err != nil {
+		st.wipe()
+		return nil, err
+	}
 	p.st, p.gen = st, gen
 	return p, nil
+}
+
+// checkRollback compares the generation just read with the highest this host
+// has seen. It refuses an older keyring unless the caller has accepted the
+// rollback, and records a higher generation when the file is ahead.
+func (p *Provider) checkRollback(ctx context.Context, gen uint64, accept bool) error {
+	unlock, err := lockFile(ctx, p.lockPath)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	f, err := p.loadBackup()
+	if err != nil {
+		return err
+	}
+	if gen < f.Highest {
+		if !accept {
+			return &RollbackError{Found: gen, Highest: f.Highest}
+		}
+		// An acknowledged generation beyond the restored keyring is not a
+		// statement about it. The high-water mark stays, so writes continue
+		// above every generation seen.
+		f.Acknowledged = min(f.Acknowledged, gen)
+		return p.saveBackup(f)
+	}
+	return p.notePersisted(gen)
 }
 
 // ErrClosed is returned by a provider after Close.
@@ -254,6 +292,7 @@ func (p *Provider) mutate(ctx context.Context, fn func(st *state) error) error {
 	}
 	defer unlock()
 	removeStaleTemps(p.path)
+	removeStaleTemps(p.backupPath())
 
 	st, gen, err := p.read()
 	if err != nil {
@@ -263,12 +302,21 @@ func (p *Provider) mutate(ctx context.Context, fn func(st *state) error) error {
 		st.wipe()
 		return err
 	}
-	if err := p.persist(st, gen+1); err != nil {
+	next, err := p.nextGeneration(gen)
+	if err != nil {
+		st.wipe()
+		return err
+	}
+	if err := p.persist(st, next); err != nil {
+		st.wipe()
+		return err
+	}
+	if err := p.notePersisted(next); err != nil {
 		st.wipe()
 		return err
 	}
 	p.st.wipe()
-	p.st, p.gen = st, gen+1
+	p.st, p.gen = st, next
 	return nil
 }
 
@@ -571,13 +619,22 @@ func (p *Provider) RotateRootKey(ctx context.Context, next RootKeySource) error 
 		return fmt.Errorf("local: encoding the keyring: %w", err)
 	}
 	defer clear(payload)
-	data := seal(newAEAD, header{rootKeyID: id, generation: gen + 1}, payload)
+	nextGen, err := p.nextGeneration(gen)
+	if err != nil {
+		st.wipe()
+		return err
+	}
+	data := seal(newAEAD, header{rootKeyID: id, generation: nextGen}, payload)
 	if err := atomicWrite(p.path, data, p.hook); err != nil {
 		st.wipe()
 		return err
 	}
+	if err := p.notePersisted(nextGen); err != nil {
+		st.wipe()
+		return err
+	}
 	p.st.wipe()
-	p.st, p.gen = st, gen+1
+	p.st, p.gen = st, nextGen
 	p.aead, p.rootID, p.root = newAEAD, id, next
 	return nil
 }
