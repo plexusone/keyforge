@@ -684,3 +684,15 @@ func TestDEKWrapAADLayoutIsFrozen(t *testing.T) {
 		t.Fatal("different purpose and subject splits produce the same additional data")
 	}
 }
+
+func TestInlineWrapAADLayoutIsFrozen(t *testing.T) {
+	var kek envelope.ID
+	for i := range kek {
+		kek[i] = 0x30 + byte(i)
+	}
+	got := keyforge.InlineWrapAAD("exports", kek)
+	want := []byte("keyforge/inline/v1\x00" + "\x00\x00\x00\x07exports" + string(kek[:]))
+	if !bytes.Equal(got, want) {
+		t.Fatalf("InlineWrapAAD = %q\nwant           %q", got, want)
+	}
+}

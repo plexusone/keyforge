@@ -351,7 +351,7 @@ func (c *Client) EncryptInline(ctx context.Context, purpose Purpose, plaintext, 
 	if err := c.readEntropy(dek); err != nil {
 		return nil, err
 	}
-	wrapped, err := prov.Wrap(ctx, kv.Ref, kv.Version, dek, inlineAAD(purpose, kv.Ref.ID))
+	wrapped, err := prov.Wrap(ctx, kv.Ref, kv.Version, dek, InlineWrapAAD(purpose, kv.Ref.ID))
 	if err != nil {
 		return nil, fmt.Errorf("%w: wrapping: %w", ErrKeyUnavailable, err)
 	}
@@ -443,7 +443,7 @@ func (c *Client) decryptInline(ctx context.Context, purpose Purpose, e *Envelope
 		if err != nil {
 			return nil, Info{}, err
 		}
-		dek, err := prov.Unwrap(ctx, ref, e.KEKVersion, e.Wrapped, inlineAAD(purpose, e.KEKID))
+		dek, err := prov.Unwrap(ctx, ref, e.KEKVersion, e.Wrapped, InlineWrapAAD(purpose, e.KEKID))
 		if err != nil {
 			return nil, Info{}, fmt.Errorf("%w: unwrapping: %w", ErrKeyUnavailable, err)
 		}
@@ -680,8 +680,9 @@ func DEKWrapAAD(purpose Purpose, subject string, dekID, kekID envelope.ID) []byt
 	return append(b, kekID[:]...)
 }
 
-// inlineAAD is the additional data an inline data key is wrapped with.
-func inlineAAD(purpose Purpose, kekID envelope.ID) []byte {
+// InlineWrapAAD is the additional data an inline data key is wrapped with. Like
+// [DEKWrapAAD] it is stored format.
+func InlineWrapAAD(purpose Purpose, kekID envelope.ID) []byte {
 	b := append([]byte(nil), "keyforge/inline/v1\x00"...)
 	b = appendLengthPrefixed(b, string(purpose))
 	return append(b, kekID[:]...)
