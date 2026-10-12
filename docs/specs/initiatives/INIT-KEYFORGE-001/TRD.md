@@ -904,6 +904,29 @@ so the core keeps its dependency rule.
   configured purpose, so a recovered rotation clears an alert instead of leaving
   a stale value.
 
+## Status
+
+`status.Reporter.Report` assembles one point-in-time view for an operator, a
+service endpoint or a ticket. It holds identifiers, states, counts and times,
+and never key material, wrapped keys or plaintext.
+
+| Section | Content |
+|---|---|
+| Crypto | The active algorithm profile and its exact algorithm names, whether the process is in FIPS mode and whether non-approved algorithms are refused outright, and the Go cryptographic module version |
+| Providers | Each provider's name and health, and for a provider with a keyring its backup state: generation, acknowledged generation, how far behind, and the note |
+| Purposes | Per purpose: the KEK and provider, every version with its state, activation, rotation and retirement times, how many data keys still reference it, whether it may be retired and why not; the next rotation and how overdue; data keys by state; and the policy in force |
+| Erasures | Each pending subject erasure with how many KEK versions remain and when it is expected to finish |
+| Jobs | The scheduler's latest tick: work in flight, work held back, and jobs whose latest attempt failed with their consecutive failures |
+
+- **`Healthy` is false when anything needs an operator**, and `Problems` says in
+  plain words what: an unhealthy provider, an overdue rotation, a keyring ahead
+  of its acknowledged backup, a purpose with no active version (writes fail
+  closed), compromised data keys not yet destroyed, or a failing job.
+- **A part that cannot be read is reported as such and does not hide the rest.**
+  An outage of one provider is what the report is for.
+- The provider is reported by its name, `local` for the keyring provider, so it
+  is not mistaken for a managed one.
+
 ## Control plane
 
 - **Service:** HTTP handlers for key listing, status, rotate, request
