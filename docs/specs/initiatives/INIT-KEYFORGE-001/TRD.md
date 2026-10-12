@@ -55,7 +55,8 @@ Implements the [PRD](PRD.md).
 | `guard` | The `Guard` interface, its decisions and combinators |
 | `audit` | Lifecycle events, the `Sink` interface, a recorder, and the actor context |
 | `service` | HTTP control plane |
-| `cmd/keyforge` | CLI (Cobra) |
+| `cli` | The Cobra commands, over the control plane's HTTP API |
+| `cmd/keyforge` | The standalone binary |
 
 The core module depends only on the standard library and
 `golang.org/x/crypto`.
@@ -935,10 +936,20 @@ and never key material, wrapped keys or plaintext.
   so the events a request causes are attributed, and supplies an `Authorizer`
   (`Authorize(ctx, action, purpose) error`) that is asked before every action.
   There is no default: a service with no authorizer cannot be constructed.
-- **CLI:** `keyforge status`, `rotate`, `retire`, `destroy`, `backup ack`,
-  `verify` (round-trips a test value through every purpose), and, with the
-  drills, `drill` (runs the DR drill on demand). The CLI is a client of the
-  library and the store, with no separate logic.
+- **CLI:** `keyforge status`, `health`, `purposes`, `rotate`, `rollback`,
+  `rewrap`, `retire request|complete|cancel`, `destroy`, `compromise`,
+  `datakey compromise|destroy`, `backup ack`, `shred request|status`, `verify`,
+  and, with the drills, `drill`. The CLI is a client of the control plane's HTTP
+  API and holds no logic of its own, so the command line cannot do what the
+  service would refuse. It has two transports: a remote server (`--server` or
+  `KEYFORGE_SERVER`, with a bearer token from `--token-file` or
+  `KEYFORGE_TOKEN`), and an in-process handler for a host binary that embeds the
+  commands, where no network is involved and the host's own authorizer applies.
+  `keyring inspect` (a keyring file's generation and root key identifier,
+  without the root key) and `rootkey generate` (32 random bytes as base64) need
+  no server. `--json` prints the response unchanged. Commands exit non-zero on an
+  error and on a guard's denial, and a denial's body is still shown. Cobra is
+  imported only by the `cli` and `cmd/keyforge` packages.
 
 ### Endpoints
 
