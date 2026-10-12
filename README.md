@@ -4,12 +4,10 @@ Encryption and signing key lifecycle for Go applications: envelope
 encryption, automatic rotation without re-encrypting stored data, and
 controlled retirement and destruction.
 
-> **Status:** pre-release, not externally audited, and not ready for production
-> use. The envelope format, the client and the provider contract exist and are
-> tested; the local keyring provider, automatic rotation, retirement and the
-> control plane do not yet. The envelope format is not frozen until v0.1.0. See
-> the [product requirements](docs/specs/initiatives/INIT-KEYFORGE-001/PRD.md) and
-> the [roadmap](docs/specs/initiatives/INIT-KEYFORGE-001/ROADMAP.md).
+> **Status:** pre-release (v0.1.0 in preparation), not externally audited, and
+> not ready for production use. The envelope format is not frozen until v0.1.0.
+> See the [threat model](docs/threat-model.md) for what it defends and where it
+> stops.
 
 ## What it does
 
@@ -34,11 +32,51 @@ controlled retirement and destruction.
   supply the local provider's root key.
 - Not a KMS. keyforge wraps and manages keys through providers; it does not
   replace a managed key service or a hardware module.
-- Not a cryptography library. It composes standard primitives (AES-GCM,
-  HPKE) from the Go standard library and `golang.org/x/crypto`.
+- Not a cryptography library. It composes standard primitives (AES-256-GCM,
+  HKDF-SHA-256) from the Go standard library and `golang.org/x/crypto`.
+
+## Quick start
+
+```go
+sys, err := embedded.Open(ctx, embedded.Options{
+	Dir:  "/var/lib/myapp/keyforge",
+	Root: local.FileSource("/etc/keyforge/root.key"),
+	Purposes: map[keyforge.Purpose]embedded.PurposeOptions{"session-secrets": {}},
+})
+if err != nil {
+	return err
+}
+defer sys.Close()
+
+sealed, err := sys.Client.Encrypt(ctx, "session-secrets", []byte("token-value"), []byte("user:42"))
+plaintext, _, err := sys.Client.Decrypt(ctx, "session-secrets", sealed, []byte("user:42"))
+```
+
+[Getting started](docs/getting-started.md) covers the root key, running the
+lifecycle jobs and the control plane.
+
+## Packages
+
+| Package | Role |
+|---|---|
+| `keyforge` (root) | The client: `Encrypt`, `EncryptFor`, `EncryptInline`, `Decrypt`, `Reencrypt` |
+| `embedded` | Single-host setup from a directory and a root key |
+| `envelope`, `algorithm` | The ciphertext format and the algorithm registry |
+| `provider`, `provider/local` | Key holders, and the keyring-file provider |
+| `registry`, `sqlstore` | The record of keys, and its SQLite and PostgreSQL store (Ent) |
+| `rotate`, `jobs` | Rotation, re-wrapping, retirement, emergencies and erasure, and their scheduler |
+| `service`, `cli`, `cmd/keyforge` | The HTTP control plane and the command line over it |
+
+The packages that touch key material import only the standard library, and a
+test enforces it.
 
 ## Documentation
 
+- [Getting started](docs/getting-started.md)
+- [Operations](docs/operations.md): rotation, backup, root-key escrow,
+  retirement, emergencies and erasure
+- [Envelope format](docs/format.md)
+- [Threat model](docs/threat-model.md)
 - [Product requirements](docs/specs/initiatives/INIT-KEYFORGE-001/PRD.md)
 - [Technical requirements](docs/specs/initiatives/INIT-KEYFORGE-001/TRD.md)
 - [Plan](docs/specs/initiatives/INIT-KEYFORGE-001/PLAN.md) and [roadmap](docs/specs/initiatives/INIT-KEYFORGE-001/ROADMAP.md)
