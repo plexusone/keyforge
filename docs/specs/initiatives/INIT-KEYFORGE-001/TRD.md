@@ -1254,3 +1254,31 @@ provider, a guard that consults its retention and approval policy, an audit
 sink, and an authorizer.
 [systemforge](https://github.com/plexusone/systemforge) is the first host;
 its adoption decisions are in its architecture decision records.
+
+### Single-host setup
+
+`embedded.Open` wires one host from a directory and a root key source, and
+returns the pieces (client, rotator, reporter, registry, keyring, jobs) so a
+host that outgrows it keeps the same objects and swaps the store or the
+provider. It is a convenience over public packages, not a second code path.
+
+- **Layout.** `keyring.kf`, `registry.db` and `runs/` in one directory,
+  created `0700`. The root key is never in it: the keyring provider refuses a
+  root key file beside the keyring.
+- **Start is idempotent.** On a first start it creates the keyring, then a KEK
+  for each configured purpose with its first version active and a sentinel
+  recorded (`Rotator.EnsureKEK`). On later starts it changes nothing. A start
+  interrupted part-way resumes: a KEK without an active version is completed,
+  not replaced.
+- **A missing keyring is not a first start.** If the registry holds keys and
+  the keyring file is gone, `Open` fails with `ErrKeyringMissing` rather than
+  creating an empty keyring, which would leave every operation failing beside
+  a registry that names keys it cannot unwrap. A wrong root key is refused and
+  changes nothing.
+- **No control plane by default.** The HTTP handler exists only when an
+  authorizer is supplied.
+- **Backup is two files and a secret.** The keyring and the registry are backed
+  up together, the keyring backup is acknowledged so rotation can rely on it,
+  and the root key is kept elsewhere, because it cannot be recovered from
+  either. `BackupRegistry` writes a consistent copy of the registry while the
+  system runs, which copying the database file does not.
