@@ -61,6 +61,7 @@ const (
 	ActionCompromiseKEK  Action = "keys.compromise"
 	ActionCompromiseDEK  Action = "datakeys.compromise"
 	ActionDestroyDEK     Action = "datakeys.destroy"
+	ActionVerify         Action = "keys.verify"
 	ActionBackupAck      Action = "backup.ack"
 	ActionShredRequest   Action = "shred.request"
 	ActionShredRead      Action = "shred.read"
@@ -88,6 +89,11 @@ func (f AuthorizerFunc) Authorize(ctx context.Context, action Action, purpose st
 // service answers 401 for it and 403 for any other refusal.
 var ErrUnauthenticated = errors.New("service: unauthenticated")
 
+// Verifier checks that the keys a purpose depends on can be used now.
+type Verifier interface {
+	Verify(ctx context.Context, purposes ...keyforge.Purpose) []keyforge.VerifyResult
+}
+
 // BackupAcker records a backup acknowledgement for a provider's keyring. The
 // local provider implements it.
 type BackupAcker interface {
@@ -107,6 +113,10 @@ type Options struct {
 	Reporter *status.Reporter
 	// Authorizer is asked before every action. Required.
 	Authorizer Authorizer
+	// Verifier round-trips a test value through each purpose's keys. A
+	// [keyforge.Client] satisfies it. Without one the verify endpoint is not
+	// offered.
+	Verifier Verifier
 	// Backups acknowledges backups by provider name.
 	Backups map[string]BackupAcker
 	// Audit receives an event for each administrative read. The default
@@ -170,6 +180,7 @@ func (s *Service) routes() {
 	h("POST /v1/keks/{kek}/versions/{version}/compromise", s.compromiseKEK)
 	h("POST /v1/datakeys/{id}/compromise", s.compromiseDEK)
 	h("POST /v1/datakeys/{id}/destroy", s.destroyDEK)
+	h("POST /v1/verify", s.verify)
 	h("POST /v1/backups/{provider}/ack", s.ackBackup)
 }
 
@@ -705,4 +716,37 @@ func (s *Service) shredStatus(w http.ResponseWriter, r *http.Request) {
 		Pending    int       `json:"pendingVersions"`
 		ExpectedBy time.Time `json:"expectedBy,omitzero"`
 	}{st.Complete, len(st.Pending), st.ExpectedBy})
+}
+
+type verifyResponse struct {
+	OK      bool                    `json:"ok"`
+	Results []keyforge.VerifyResult `json:"results"`
+}
+
+// verify round-trips a test value through every purpose, or through the one
+// named in the optional `purpose` query parameter. It answers 200 when all pass
+// and 503 with the same body when one does not, so a monitor can read the status.
+func (s *Service) verify(w http.ResponseWriter, r *http.Request) {
+	purpose := r.URL.Query().Get("purpose")
+	if !s.authorize(w, r, ActionVerify, purpose) {
+		return
+	}
+	if s.o.Verifier == nil {
+		writeError(w, http.StatusNotImplemented, "not_configured", "verification is not configured")
+		return
+	}
+	var ps []keyforge.Purpose
+	if purpose != "" {
+		ps = append(ps, keyforge.Purpose(purpose))
+	}
+	res := s.o.Verifier.Verify(r.Context(), ps...)
+	out := verifyResponse{OK: true, Results: res}
+	for _, v := range res {
+		out.OK = out.OK && v.OK
+	}
+	code := http.StatusOK
+	if !out.OK {
+		code = http.StatusServiceUnavailable
+	}
+	writeJSON(w, code, out)
 }

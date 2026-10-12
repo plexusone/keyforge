@@ -146,6 +146,7 @@ func newFixture(t *testing.T, fo fixtureOpts) *fixture {
 	}
 	svc, err := service.New(service.Options{
 		Store: f.store, Rotator: rot, Reporter: rep, Authorizer: f.authz, Backups: fo.acker, Audit: sink, Clock: f.clock,
+		Verifier: f.client,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -644,6 +645,28 @@ func TestUnexpectedFailuresDoNotLeakDetail(t *testing.T) {
 	for _, leak := range []string{"10.1.2.3", "password", "keyforge_admin", "5432"} {
 		if strings.Contains(rr.Body.String(), leak) {
 			t.Fatalf("the response leaks %q: %s", leak, rr.Body.String())
+		}
+	}
+}
+
+func TestVerifyEndpoint(t *testing.T) {
+	f := newFixture(t, fixtureOpts{})
+	r := f.do("POST", "/v1/verify", nil)
+	if r.code != 200 || r.body["ok"] != true {
+		t.Fatalf("verify = %d %v", r.code, r.body)
+	}
+	if got := f.authz.last(); got != "keys.verify:" {
+		t.Fatalf("authorizer asked %q", got)
+	}
+	if r := f.do("POST", "/v1/verify?purpose=orders", nil); r.code != 200 || f.authz.last() != "keys.verify:orders" {
+		t.Fatalf("verify one purpose = %d, asked %q", r.code, f.authz.last())
+	}
+	if r := f.do("POST", "/v1/verify?purpose=unknown", nil); r.code != 503 || r.body["ok"] != false {
+		t.Fatalf("verify an unconfigured purpose = %d %v, want 503 with ok false", r.code, r.body)
+	}
+	for _, leak := range []string{"wrapped", "material"} {
+		if strings.Contains(f.do("POST", "/v1/verify", nil).raw, leak) {
+			t.Errorf("the verify response has %q", leak)
 		}
 	}
 }
