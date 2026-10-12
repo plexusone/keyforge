@@ -306,6 +306,11 @@ func (r *Reporter) crypto() CryptoStatus {
 	return cs
 }
 
+// Purpose reports one purpose.
+func (r *Reporter) Purpose(ctx context.Context, purpose keyforge.Purpose) PurposeStatus {
+	return r.purpose(ctx, purpose, r.o.Clock.Now())
+}
+
 func (r *Reporter) purpose(ctx context.Context, purpose keyforge.Purpose, now time.Time) PurposeStatus {
 	pol := r.o.Policy.For(purpose)
 	out := PurposeStatus{
