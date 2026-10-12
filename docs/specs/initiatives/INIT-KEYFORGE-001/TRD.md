@@ -110,7 +110,8 @@ every one and checks that every pair not listed is refused with a typed error.
 - **Key version**: `key_id`, `version`, `state`, `created_at`, `rotated_at`,
   `retire_after`, `provider_ref`.
 - **DEK**: `id`, `purpose`, `subject` (optional), `epoch`, `kek_id`,
-  `kek_version`, `wrapped`, `state`, `encryptions` (counter), `created_at`.
+  `kek_version`, `wrapped`, `state`, `reserved` (encryption-count high-water
+  mark, see [Encryption counter](#encryption-counter)), `created_at`.
 - **Job**: `kind`, `cursor`, `state`, lease holder and expiry, for resumable
   rotation and re-wrapping.
 - **Event**: the audit trail, also emitted to the sink.
@@ -142,11 +143,32 @@ ciphertext || tag
 - **Algorithm 1 (registry ID 1):** AES-256-GCM through `cipher.NewGCMWithRandomNonce`, the
   only GCM constructor permitted under `fips140=only`. Its output begins with
   the 12-byte random nonce, which the format stores in the header's nonce
-  field and restores on open. The DEK's `encryptions` counter is incremented
-  per encryption, and a DEK reaching its cap is rotated to a new epoch before
-  the NIST random-nonce limit of 2³² invocations. The default cap is 2³⁰.
+  field and restores on open. Each encryption is counted against the DEK's
+  cap (see [Encryption counter](#encryption-counter)), and a DEK reaching its
+  cap is rotated to a new epoch before the NIST random-nonce limit of 2³²
+  invocations. The default cap is 2³⁰.
 - **Forward compatibility:** unknown `format` or `algorithm` values fail with
   a typed error rather than a guess. The parser is fuzzed.
+
+### Encryption counter
+
+The cap must hold across replicas and crashes without a registry call per
+encryption, so encryptions are counted in blocks reserved from the registry:
+
+- The DEK record holds `reserved`, a high-water mark. A process reserves a
+  block of B encryptions (default 2¹⁶) by advancing `reserved` with one
+  compare-and-set, and counts within the block in memory with an atomic
+  counter. Each replica holds its own block.
+- A block that is not fully used (the process exits or crashes) counts as
+  used. `reserved` can therefore overstate the encryptions performed, never
+  understate them.
+- A reservation that would take `reserved` past the cap triggers a new epoch
+  instead, and the write proceeds under the new epoch's DEK. If no new epoch
+  can be created, the write fails closed.
+- During a registry outage, writes continue until the current block is
+  spent and then fail closed. Reads are unaffected.
+- At the default cap and block size a DEK needs at most 2¹⁴ reservations in
+  its life, one registry write per 65,536 encryptions.
 
 ## Providers
 
