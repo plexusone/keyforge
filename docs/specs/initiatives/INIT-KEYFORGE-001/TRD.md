@@ -43,7 +43,8 @@ Implements the [PRD](PRD.md).
 | `keyforge` | Core types: `Purpose`, `KeyRef`, `Envelope`, `Client` (`Encrypt`, `Decrypt`, `Reencrypt`), errors |
 | `algorithm` | The algorithm registry: identifiers, exact names, and construction of the AEAD for each (profiles and selection are added with the selector) |
 | `envelope` | The binary and text formats, header validation, versioning, parser, and sealing and opening of the payload |
-| `provider` | `Provider` interface and the conformance suite |
+| `provider` | `Provider` interface, `KeyRef` and `KeySpec` (the root package re-exports them) |
+| `provider/providertest` | The conformance suite every provider runs |
 | `provider/local` | The keyring-file provider |
 | `registry` | `Store` interface, in-memory implementation, key state machine |
 | `store/ent` | SQLite and PostgreSQL store (separate module so the core has no ORM dependency) |
@@ -217,15 +218,16 @@ type Provider interface {
 // envelopes; ProviderRef is the provider's own opaque identifier (a keyring
 // entry, a KMS key ARN or resource name), stored in the registry.
 type KeyRef struct {
-    ID          [16]byte
+    ID          envelope.ID // [16]byte
     Provider    string
     ProviderRef string
 }
 
 // KeySpec describes a KEK to create.
 type KeySpec struct {
-    Purpose   Purpose
-    Algorithm AlgorithmID // from the registry; AES-256-GCM in this initiative
+    Purpose   string       // a valid purpose name; the provider may label with it
+    Algorithm algorithm.ID // from the registry
+    ID        envelope.ID  // optional: a key moved from another provider keeps its ID
 }
 ```
 
@@ -234,6 +236,20 @@ type KeySpec struct {
 - A provider never returns KEK material. `Wrap` and `Unwrap` take the AAD
   (purpose and key identity) so the wrap is bound to its use; a KMS provider
   maps it to the service's encryption context.
+- **Versions** are numbered from 1 and increase. `CreateKey` makes version 1;
+  `Rotate` adds the next and returns its number, leaving earlier versions
+  usable for `Unwrap`. Which version is active is the registry's decision.
+- **Errors are typed and carry no detail that helps an attacker:**
+  `ErrKeyNotFound`, `ErrVersionNotFound`, `ErrVersionDestroyed`,
+  `ErrUnsupportedAlgorithm`, `ErrInvalidArgument`, and `ErrUnwrapFailed`,
+  which is the same for a wrong AAD, a wrong version or key, and a modified or
+  truncated wrapped key.
+- `Destroy` is irreversible and idempotent, so a retried job is safe. After it
+  `Wrap` and `Unwrap` for that version fail with `ErrVersionDestroyed`.
+- Every method honors the context: with a cancelled context it returns an
+  error wrapping `ctx.Err()` and changes nothing. Providers neither retain nor
+  modify their inputs, return slices the caller owns, and are safe for
+  concurrent use.
 - A provider that rotates natively (a managed KMS) reports the new version
   from `Rotate`; one that does not (the local keyring) generates it.
 - Every provider passes the same conformance suite, which also runs against
