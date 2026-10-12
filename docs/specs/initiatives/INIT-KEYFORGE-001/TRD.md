@@ -544,6 +544,16 @@ epoch is no longer current, and `Reencrypt` produces a current envelope, so
 hosts can rewrite data on its next write or in a throttled background pass.
 No pass is required for correctness.
 
+- **Age is measured from the record's creation time**, which comes from the
+  registry, so every replica agrees on it. A write that finds the current epoch
+  at or past its maximum age creates the next one; replicas racing to do so
+  converge on one through the registry's compare-and-set. An epoch is used for
+  less than its lifetime, never up to and past it.
+- Age and volume are independent triggers: whichever is reached first rolls the
+  epoch. The client's per-purpose configuration takes both from policy.
+- An old epoch is not stranded: it keeps decrypting, reports `Stale`, and its
+  data moves to the current epoch on the host's next write or by `Reencrypt`.
+
 ### Per-subject keys and crypto-shredding
 
 A purpose can be declared **per-subject**: each subject (a user, a tenant)
