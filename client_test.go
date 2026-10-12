@@ -2,6 +2,7 @@ package keyforge_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -991,5 +992,68 @@ func TestMetricsAreOptional(t *testing.T) {
 	c := newEnv(t).client() // no Metrics configured
 	if _, err := c.Encrypt(bg, testPurpose, []byte("x"), nil); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// ---- verify ----
+
+func TestVerifyExercisesTheRealKeyPath(t *testing.T) {
+	en := newEnv(t)
+	c := en.client()
+
+	res := c.Verify(bg)
+	if len(res) != 1 || !res[0].OK || res[0].Purpose != testPurpose {
+		t.Fatalf("Verify = %+v", res)
+	}
+	if len(res[0].Checks) != 2 || res[0].Checks[0].Mode != "reference" || res[0].Checks[1].Mode != "inline" {
+		t.Fatalf("Checks = %+v, want both modes", res[0].Checks)
+	}
+	// It used the provider, as a real write does.
+	if en.prov.count("Wrap") == 0 || en.prov.count("Unwrap") == 0 {
+		t.Fatalf("provider wraps %d unwraps %d: verification did not touch it", en.prov.count("Wrap"), en.prov.count("Unwrap"))
+	}
+}
+
+func TestVerifyReportsAFailureAndNamesNoDetail(t *testing.T) {
+	en := newEnv(t)
+	c := en.client()
+	en.prov.fail(errors.New("credentials expired for arn:aws:kms:us-east-1:1234:key/abc"))
+
+	res := c.Verify(bg)
+	if len(res) != 1 || res[0].OK {
+		t.Fatalf("Verify = %+v, want a failure", res)
+	}
+	b, err := json.Marshal(res)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leak := range []string{"arn:aws", "credentials", "1234"} {
+		if strings.Contains(string(b), leak) {
+			t.Errorf("the result leaks %q: %s", leak, b)
+		}
+	}
+	for _, chk := range res[0].Checks {
+		if chk.Outcome != "unavailable" {
+			t.Errorf("outcome = %q, want the failure class", chk.Outcome)
+		}
+	}
+}
+
+func TestVerifyDoesNotCreateRecordsForSubjects(t *testing.T) {
+	en := newEnv(t, perSubject)
+	c := en.client()
+	res := c.Verify(bg)
+	if len(res) != 1 || !res[0].OK || len(res[0].Checks) != 1 || res[0].Checks[0].Mode != "inline" {
+		t.Fatalf("Verify = %+v, want one inline check", res)
+	}
+	if n := len(en.store.deks); n != 0 {
+		t.Fatalf("verifying a per-subject purpose created %d data key records", n)
+	}
+}
+
+func TestVerifyUnknownPurpose(t *testing.T) {
+	res := newEnv(t).client().Verify(bg, "not-configured")
+	if len(res) != 1 || res[0].OK || res[0].Checks[0].Outcome != "invalid" {
+		t.Fatalf("Verify = %+v", res)
 	}
 }

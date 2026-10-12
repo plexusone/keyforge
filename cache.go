@@ -60,6 +60,14 @@ func (c *lru[K, V]) put(k K, v V) {
 	}
 }
 
+func (c *lru[K, V]) delete(k K) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if el, found := c.items[k]; found {
+		c.removeLocked(el)
+	}
+}
+
 func (c *lru[K, V]) clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()

@@ -1,6 +1,7 @@
 package keyforge
 
 import (
+	"bytes"
 	"context"
 	"crypto/cipher"
 	"crypto/rand"
@@ -9,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 	"time"
 	"unicode"
@@ -764,6 +766,109 @@ func (c *Client) advance(ctx context.Context, purpose Purpose, subject string, c
 	}
 	c.current.put(currentKey{purpose, subject}, winner)
 	return winner, nil
+}
+
+// VerifyResult is the outcome of verifying one purpose.
+type VerifyResult struct {
+	Purpose Purpose `json:"purpose"`
+	// OK is true when every check passed.
+	OK bool `json:"ok"`
+	// Checks lists what was exercised and how each went.
+	Checks []VerifyCheck `json:"checks"`
+}
+
+// VerifyCheck is one round trip.
+type VerifyCheck struct {
+	// Mode is "reference" or "inline".
+	Mode string `json:"mode"`
+	// Outcome is "ok" or one of the failure classes a metric uses; it names no
+	// detail.
+	Outcome string `json:"outcome"`
+}
+
+// Verify round-trips a fresh random test value through each purpose's real key
+// path, reading it back from cold: the current data key and the provider for
+// reference mode, and a wrap and an unwrap by the provider for inline mode. It
+// proves that the keys a purpose depends on can be used now, which is what an
+// operator wants to know before a rotation or after a change, and what a quiet
+// week would otherwise hide.
+//
+// A per-subject purpose is checked in inline mode only, so verification creates
+// no data key record for a subject that does not exist. The test value and its
+// context are random and are zeroed afterwards; nothing is returned but outcomes.
+func (c *Client) Verify(ctx context.Context, purposes ...Purpose) []VerifyResult {
+	if len(purposes) == 0 {
+		for p := range c.purposes {
+			purposes = append(purposes, p)
+		}
+		slices.Sort(purposes)
+	}
+	out := make([]VerifyResult, 0, len(purposes))
+	for _, p := range purposes {
+		res := VerifyResult{Purpose: p, OK: true}
+		cfg, err := c.purposeConfig(p)
+		if err != nil {
+			res.OK = false
+			res.Checks = append(res.Checks, VerifyCheck{Mode: "reference", Outcome: outcomeOf(err)})
+			out = append(out, res)
+			continue
+		}
+		modes := []string{"reference", "inline"}
+		if cfg.PerSubject {
+			modes = []string{"inline"}
+		}
+		for _, mode := range modes {
+			err := c.verifyOnce(ctx, p, mode)
+			chk := VerifyCheck{Mode: mode, Outcome: outcomeOf(err)}
+			res.OK = res.OK && err == nil
+			res.Checks = append(res.Checks, chk)
+		}
+		out = append(out, res)
+	}
+	return out
+}
+
+func (c *Client) verifyOnce(ctx context.Context, purpose Purpose, mode string) error {
+	value := make([]byte, 32)
+	bound := make([]byte, 16)
+	defer clear(value)
+	if err := c.readEntropy(value); err != nil {
+		return err
+	}
+	if err := c.readEntropy(bound); err != nil {
+		return err
+	}
+	var (
+		e   *Envelope
+		err error
+	)
+	if mode == "inline" {
+		e, err = c.EncryptInline(ctx, purpose, value, bound)
+	} else {
+		e, err = c.Encrypt(ctx, purpose, value, bound)
+	}
+	if err != nil {
+		return err
+	}
+	// Decrypt from cold. A key this process just created is cached, and reading
+	// it back from the cache would prove nothing about the provider; dropping it
+	// makes the read go through the registry and the provider, which is the path
+	// a restarted process takes.
+	switch e.Mode {
+	case envelope.ModeInline:
+		c.inline.delete(inlineDigest(e.KEKID, e.KEKVersion, e.Wrapped))
+	default:
+		c.handles.delete(e.DEKID)
+	}
+	got, _, err := c.Decrypt(ctx, purpose, e, bound)
+	defer clear(got)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(got, value) {
+		return fmt.Errorf("%w: the verification value did not round-trip", ErrInvalidEnvelope)
+	}
+	return nil
 }
 
 // AdvanceEpoch creates the next data key epoch for a purpose and subject now,
