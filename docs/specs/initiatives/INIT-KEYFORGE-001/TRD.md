@@ -52,7 +52,7 @@ Implements the [PRD](PRD.md).
 | `store/ent` | SQLite and PostgreSQL store (separate module so the core has no ORM dependency) |
 | `policy` | Rotation, epoch and retirement policy per purpose |
 | `rotate` | The scheduler and jobs |
-| `guard` | `DestroyGuard` interface and helpers |
+| `guard` | The `Guard` interface, its decisions and combinators |
 | `audit` | `Sink` interface and event types |
 | `service` | HTTP control plane |
 | `cmd/keyforge` | CLI (Cobra) |
@@ -583,15 +583,40 @@ backup can unwrap it. So:
 
 ### Retirement and destruction
 
-- `retire-requested` starts a delay (default 30 days, per purpose).
-- Before `retired` and again before `destroyed`, the **guard** is consulted.
-  It may allow, deny with a reason, or answer `Pending` (an approval is
-  outstanding). Only an allow advances the state.
-- A denied request returns the key to `decrypt-only`, usable, with an audit
-  event. A pending answer leaves it `retire-requested`, still decryptable,
-  and the guard is asked again on the next scheduler pass.
-- Destruction is irreversible at the provider; for providers with a
-  deletion window it is scheduled and cancellable inside it.
+Retirement and destruction are separate steps, each consulting the **guard**,
+because the facts can change between them.
+
+1. **Request.** A decrypt-only version outside the retained-versions floor moves
+   to `retire-requested` and the delay starts (default 30 days, per purpose).
+   References do not stop the request: the re-wrap can finish during the delay.
+2. **Complete.** After the delay, with no data key in the registry wrapped under
+   the version, the guard is asked. Only an **allow** moves it to `retired`.
+   **Deny** returns it to `decrypt-only`, usable, with the denial recorded, and it
+   can be requested again. **Pending** (an approval is outstanding) leaves it
+   `retire-requested` and the guard is asked again on the next pass. A guard
+   that **fails**, or is **absent**, advances nothing: the absence of a veto is
+   not consent, and a zero decision is not an allow.
+3. **Destroy.** A `retired` version's material is destroyed at the provider,
+   after the guard is asked again. The order is guard, then provider, then
+   registry. Destroying at the provider is idempotent, so a crash between the
+   last two is repaired by calling again; the reverse order could record a
+   destruction that did not happen.
+
+- **A retired version is not usable**, even though the provider still holds its
+  material until step 3: the client asks the registry whether a version may be
+  unwrapped, on the first unwrap and then from its cache, and refuses
+  `retired`, `destroyed` and `pending`. Retiring therefore has an effect on its
+  own, and not only at destruction.
+- Destruction is irreversible at the provider. Where a provider offers a
+  deletion window, it can be used to schedule the destruction and cancel it
+  inside the window; the provider interface does not yet expose one.
+- The guard sees the action, the purpose, the KEK version, how many registry
+  data keys still reference it (zero at completion), who asked, and whether the
+  procedure is an emergency. It cannot see data outside the registry, which is
+  why the host supplies it: an inline envelope, an export, a snapshot or a
+  backup that needs the version is the host's to know.
+- Every outcome is an audit event: `key.retire_requested`, `key.retired`,
+  `key.retire_cancelled`, `key.destroyed`, `guard.denied`, `guard.pending`.
 
 ### Emergency rotation
 
