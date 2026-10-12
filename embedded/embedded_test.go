@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -299,6 +300,9 @@ func TestMissingRegistryBesideAKeyringIsNotAFreshStart(t *testing.T) {
 }
 
 func TestFilesAreOwnerOnly(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file modes are not enforced on Windows")
+	}
 	dir := filepath.Join(t.TempDir(), "state")
 	s := open(t, options(dir))
 	check := func(path string, want os.FileMode) {

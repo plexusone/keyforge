@@ -669,10 +669,13 @@ func atomicWrite(path string, data []byte, hook func(string) error) error {
 	}
 	tmpName := tmp.Name()
 	cleanup := func(cause error) error {
+		_ = tmp.Close() //nolint:errcheck // already failing; the first error is the one to report
 		if !errors.Is(cause, errSimulatedCrash) {
-			_ = tmp.Close()        //nolint:errcheck // already failing; the first error is the one to report
 			_ = os.Remove(tmpName) //nolint:errcheck // best-effort removal of a partial file
 		}
+		// A simulated crash leaves the file, as a killed process would. The
+		// handle is still closed: the operating system closes a dead process's
+		// handles, and Windows cannot delete a file that is open.
 		return cause
 	}
 
