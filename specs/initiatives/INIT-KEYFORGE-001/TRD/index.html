@@ -1,0 +1,3971 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Encryption and signing key lifecycle for Go applications">
+      
+      
+      
+        <link rel="canonical" href="https://plexusone.github.io/keyforge/specs/initiatives/INIT-KEYFORGE-001/TRD/">
+      
+      
+        <link rel="prev" href="../PRD/">
+      
+      
+        <link rel="next" href="../PLAN/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Technical Requirements - keyforge</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="https://plexusone.dev/css/plexusone-mkdocs.css">
+    
+    <script>__md_scope=new URL("../../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#keyforge-technical-requirements" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+<!-- PlexusOne Unified Navigation -->
+<div id="plexus-nav-root"></div>
+<script src="https://plexusone.dev/js/plexus-nav.js"></script>
+
+
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../../.." title="keyforge" class="md-header__button md-logo" aria-label="keyforge" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            keyforge
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Technical Requirements
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="custom"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/plexusone/keyforge" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    plexusone/keyforge
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../../.." title="keyforge" class="md-nav__button md-logo" aria-label="keyforge" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    keyforge
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/plexusone/keyforge" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    plexusone/keyforge
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../operations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../format/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Envelope Format
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../threat-model/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Threat Model
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../PRD/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Product Requirements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technical Requirements
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technical Requirements
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Concepts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key states
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transitions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-store-enforces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the store enforces
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-sql-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The SQL store
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-key-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data key states
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#registry-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry records
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#envelope-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Envelope format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Envelope format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#encryption-counter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Encryption counter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Providers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Providers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#local-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local provider
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#wrapping-data-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wrapping data keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#kek-rotation-automatic-default-365-days" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KEK rotation (automatic, default 365 days)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retained-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retained versions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-key-rotation-automatic-default-90-days-or-volume-cap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data-key rotation (automatic, default 90 days or volume cap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-subject-keys-and-crypto-shredding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-subject keys and crypto-shredding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retirement-and-destruction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retirement and destruction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#emergency-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Emergency rotation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rotation-drill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotation drill
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disaster-recovery-drill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disaster-recovery drill
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Disaster-recovery drill">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mechanical-part-the-drill-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mechanical part (the drill engine)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#judgment-part-the-analyst-and-the-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Judgment part (the analyst and the report)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schedule-and-triggers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schedule and triggers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interfaces-the-host-supplies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interfaces the host supplies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scheduling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#caching-and-availability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caching and availability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#control-plane" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control plane
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Control plane">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#algorithms-and-profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Algorithms and profiles
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Algorithms and profiles">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Profiles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#starting-point-fips-140-3-and-post-quantum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting point, FIPS 140-3 and post-quantum
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inventory-and-the-crypto-specification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inventory and the crypto specification
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inventory and the crypto specification">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-kinds-of-fact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three kinds of fact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#external-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        External boundaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-keyforge-does-not-do-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What keyforge does not do here
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#threat-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Threat model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Threat model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#known-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-host-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-host setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../PLAN/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plan
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ROADMAP/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Roadmap
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Releases
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../../releases/v0.1.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.1.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Concepts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key states
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transitions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-the-store-enforces" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the store enforces
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-sql-store" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The SQL store
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-key-states" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data key states
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#registry-records" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry records
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#envelope-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Envelope format
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Envelope format">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#encryption-counter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Encryption counter
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#providers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Providers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Providers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#local-provider" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Local provider
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Client
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Client">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#wrapping-data-keys" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Wrapping data keys
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#policy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Policy
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Rotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#kek-rotation-automatic-default-365-days" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KEK rotation (automatic, default 365 days)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retained-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retained versions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-key-rotation-automatic-default-90-days-or-volume-cap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data-key rotation (automatic, default 90 days or volume cap)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#per-subject-keys-and-crypto-shredding" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-subject keys and crypto-shredding
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retirement-and-destruction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retirement and destruction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#emergency-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Emergency rotation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rotation-drill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotation drill
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#disaster-recovery-drill" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disaster-recovery drill
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Disaster-recovery drill">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#mechanical-part-the-drill-engine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Mechanical part (the drill engine)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#judgment-part-the-analyst-and-the-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Judgment part (the analyst and the report)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schedule-and-triggers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schedule and triggers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interfaces-the-host-supplies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interfaces the host supplies
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scheduling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduling
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#caching-and-availability" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caching and availability
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#audit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Audit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#control-plane" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Control plane
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Control plane">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Endpoints
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#algorithms-and-profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Algorithms and profiles
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Algorithms and profiles">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#registry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Registry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Profiles
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#starting-point-fips-140-3-and-post-quantum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Starting point, FIPS 140-3 and post-quantum
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inventory-and-the-crypto-specification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inventory and the crypto specification
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Inventory and the crypto specification">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-kinds-of-fact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three kinds of fact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#external-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        External boundaries
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Export
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#verification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verification
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-keyforge-does-not-do-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What keyforge does not do here
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#threat-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Threat model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Threat model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#known-limitations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known limitations
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Integration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Integration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-host-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single-host setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="keyforge-technical-requirements">keyforge: Technical Requirements<a class="headerlink" href="#keyforge-technical-requirements" title="Permanent link">&para;</a></h1>
+<p><strong>Initiative:</strong> <code>INIT-KEYFORGE-001</code>
+<strong>Repository:</strong> <code>github.com/plexusone/keyforge</code></p>
+<p>Implements the <a href="../PRD/">PRD</a>.</p>
+<h2 id="concepts">Concepts<a class="headerlink" href="#concepts" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Purpose</strong></td>
+<td>A named use of encryption (<code>session-secrets</code>, <code>hold-snapshots</code>). Keys are scoped to a purpose; the purpose is bound into every ciphertext</td>
+</tr>
+<tr>
+<td><strong>KEK</strong></td>
+<td>Key-encryption key. Held by a provider and never exposed. Has <strong>versions</strong></td>
+</tr>
+<tr>
+<td><strong>DEK</strong></td>
+<td>Data-encryption key. Encrypts application data and is stored only wrapped by a KEK</td>
+</tr>
+<tr>
+<td><strong>Epoch</strong></td>
+<td>A DEK generation for a purpose (and optionally a subject): new writes use the current epoch, older epochs are decrypt-only</td>
+</tr>
+<tr>
+<td><strong>Envelope</strong></td>
+<td>The self-describing ciphertext: header, nonce, ciphertext and tag</td>
+</tr>
+<tr>
+<td><strong>Context</strong></td>
+<td>Caller-supplied bytes bound into the ciphertext (for example a record ID)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a> application ──► keyforge (library) ──► provider (local | KMS)
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                      │      ▲
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>                      ▼      │ wrapped DEKs, key states
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>                  registry store          control plane (service, CLI)
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>                      ▲                          │
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>                      └── scheduler, retire ◄────┘     guard, audit sink,
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>                                                       authorizer (host-supplied)
+</code></pre></div>
+<ul>
+<li>The <strong>library</strong> is on the data path and runs in process. A data key is
+  unwrapped once and cached; encrypt and decrypt make no network call.</li>
+<li>The <strong>control plane</strong> (service, scheduler, CLI) is off the data path. It
+  reads and writes the registry, drives rotation and destruction, and reports
+  status.</li>
+<li>The <strong>host application</strong> supplies a store, a provider, a guard, an audit
+  sink and an authorizer. keyforge does not authenticate callers.</li>
+</ul>
+<h3 id="packages">Packages<a class="headerlink" href="#packages" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>keyforge</code></td>
+<td>Core types: <code>Purpose</code>, <code>KeyRef</code>, <code>Envelope</code>, <code>Store</code> (what the client needs from the registry), <code>Client</code> (<code>Encrypt</code>, <code>EncryptInline</code>, <code>Decrypt</code>, <code>Reencrypt</code>), errors</td>
+</tr>
+<tr>
+<td><code>algorithm</code></td>
+<td>The algorithm registry: identifiers, exact names, and construction of the AEAD for each (profiles and selection are added with the selector)</td>
+</tr>
+<tr>
+<td><code>envelope</code></td>
+<td>The binary and text formats, header validation, versioning, parser, and sealing and opening of the payload</td>
+</tr>
+<tr>
+<td><code>provider</code></td>
+<td><code>Provider</code> interface, <code>KeyRef</code> and <code>KeySpec</code> (the root package re-exports them)</td>
+</tr>
+<tr>
+<td><code>provider/providertest</code></td>
+<td>The conformance suite every provider runs</td>
+</tr>
+<tr>
+<td><code>provider/local</code></td>
+<td>The keyring-file provider</td>
+</tr>
+<tr>
+<td><code>registry</code></td>
+<td><code>Store</code> (the client's <code>keyforge.Store</code> plus key and version administration), record types, the key-version and data-key transition tables</td>
+</tr>
+<tr>
+<td><code>registry/memory</code></td>
+<td>In-memory store, the reference the SQL store is compared against</td>
+</tr>
+<tr>
+<td><code>registry/storetest</code></td>
+<td>The store conformance suite</td>
+</tr>
+<tr>
+<td><code>sqlstore</code></td>
+<td>The Ent-backed <code>registry.Store</code> for SQLite and PostgreSQL, with versioned schema and retry of engine contention</td>
+</tr>
+<tr>
+<td><code>sqlstore/ent</code></td>
+<td>The Ent schema and generated code</td>
+</tr>
+<tr>
+<td><code>embedded</code></td>
+<td>The single-host setup: keyring, SQLite registry, jobs and service wired from a directory and a root key source</td>
+</tr>
+<tr>
+<td><code>policy</code></td>
+<td>Rotation, epoch and retirement policy per purpose</td>
+</tr>
+<tr>
+<td><code>rotate</code></td>
+<td>KEK rotation, re-wrapping, rollback, retirement, destruction and the emergency procedures (the scheduler arrives with the control plane)</td>
+</tr>
+<tr>
+<td><code>guard</code></td>
+<td>The <code>Guard</code> interface, its decisions and combinators</td>
+</tr>
+<tr>
+<td><code>audit</code></td>
+<td>Lifecycle events, the <code>Sink</code> interface, a recorder, and the actor context</td>
+</tr>
+<tr>
+<td><code>service</code></td>
+<td>HTTP control plane</td>
+</tr>
+<tr>
+<td><code>cli</code></td>
+<td>The Cobra commands, over the control plane's HTTP API</td>
+</tr>
+<tr>
+<td><code>cmd/keyforge</code></td>
+<td>The standalone binary</td>
+</tr>
+</tbody>
+</table>
+<p>The module is one module. What keeps it reviewable is its import graph: the
+packages that touch key material (<code>algorithm</code>, <code>envelope</code>, <code>provider</code>,
+<code>provider/local</code>, the root package, and <code>metrics</code>, which holds only counters and
+bounded labels) import only the standard library, and a test enforces it. The store holds wrapped keys and never a plaintext one, so
+reading or editing the database yields no key and cannot move a ciphertext to
+another record. Ent and the database drivers are imported by <code>sqlstore</code> only,
+OmniWorkflow by <code>jobs</code> only, and Cobra by <code>cli</code> and <code>cmd/keyforge</code> only.</p>
+<h2 id="data-model">Data model<a class="headerlink" href="#data-model" title="Permanent link">&para;</a></h2>
+<h3 id="key-states">Key states<a class="headerlink" href="#key-states" title="Permanent link">&para;</a></h3>
+<p>A key version moves through these states. A transition that removes key
+material from use (into <code>retired</code> or <code>destroyed</code>) is one-way; the only other
+backward moves are the two listed in the transition table.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>pending ─► active ⇄ decrypt-only ⇄ retire-requested ─► retired ─► destroyed
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>             │            │               │                ▲
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>             └────────────┴───────────────┴─► compromised ─┘
+</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Encrypt</th>
+<th>Decrypt</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pending</code></td>
+<td>no</td>
+<td>no</td>
+<td>Created, not yet in use</td>
+</tr>
+<tr>
+<td><code>active</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>Exactly one active version per KEK</td>
+</tr>
+<tr>
+<td><code>decrypt-only</code></td>
+<td>no</td>
+<td>yes</td>
+<td>Rotated out; kept until nothing references it</td>
+</tr>
+<tr>
+<td><code>retire-requested</code></td>
+<td>no</td>
+<td>yes</td>
+<td>Retirement asked for; delay running, guard consulted</td>
+</tr>
+<tr>
+<td><code>retired</code></td>
+<td>no</td>
+<td>no</td>
+<td>Key material removed from use, recoverable only from backups</td>
+</tr>
+<tr>
+<td><code>destroyed</code></td>
+<td>no</td>
+<td>no</td>
+<td>Key material destroyed at the provider</td>
+</tr>
+<tr>
+<td><code>compromised</code></td>
+<td>no</td>
+<td>policy</td>
+<td>Marked by an operator; leads to the emergency procedure</td>
+</tr>
+</tbody>
+</table>
+<h3 id="transitions">Transitions<a class="headerlink" href="#transitions" title="Permanent link">&para;</a></h3>
+<p>These are the only permitted transitions. The store conformance suite checks
+every one and checks that every pair not listed is refused with a typed error.</p>
+<table>
+<thead>
+<tr>
+<th>From</th>
+<th>To</th>
+<th>Trigger</th>
+<th>Audit event</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pending</code></td>
+<td><code>active</code></td>
+<td>Activation; the previous <code>active</code> version moves to <code>decrypt-only</code> in the same transaction</td>
+<td><code>key.activated</code></td>
+</tr>
+<tr>
+<td><code>active</code></td>
+<td><code>decrypt-only</code></td>
+<td>Activation of another version, or rollback</td>
+<td><code>key.activated</code>, <code>key.rolled_back</code></td>
+</tr>
+<tr>
+<td><code>decrypt-only</code></td>
+<td><code>active</code></td>
+<td><strong>Rollback</strong>: only the most recent <code>decrypt-only</code> version, and the current <code>active</code> version moves to <code>decrypt-only</code> in the same transaction</td>
+<td><code>key.rolled_back</code></td>
+</tr>
+<tr>
+<td><code>decrypt-only</code></td>
+<td><code>retire-requested</code></td>
+<td>Retirement requested; the delay starts</td>
+<td><code>key.retire_requested</code></td>
+</tr>
+<tr>
+<td><code>retire-requested</code></td>
+<td><code>decrypt-only</code></td>
+<td><strong>Cancellation</strong>: the guard denies, or an operator cancels</td>
+<td><code>guard.denied</code>, <code>key.retire_cancelled</code></td>
+</tr>
+<tr>
+<td><code>retire-requested</code></td>
+<td><code>retired</code></td>
+<td>Delay passed and the guard allows</td>
+<td><code>key.retired</code></td>
+</tr>
+<tr>
+<td><code>retired</code></td>
+<td><code>destroyed</code></td>
+<td>The guard allows; the provider destroys the material</td>
+<td><code>key.destroyed</code></td>
+</tr>
+<tr>
+<td><code>active</code>, <code>decrypt-only</code>, <code>retire-requested</code></td>
+<td><code>compromised</code></td>
+<td>Operator marks it</td>
+<td><code>key.compromised</code></td>
+</tr>
+<tr>
+<td><code>compromised</code></td>
+<td><code>retired</code></td>
+<td>Emergency procedure, after re-wrap</td>
+<td><code>key.retired</code></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>At most one version per KEK is <code>active</code>, and exactly one once the first has
+  been activated. A KEK whose only active version is marked <code>compromised</code> has
+  none until another is activated, and wrapping fails closed meanwhile.</li>
+<li>A rollback demotes the newer version to <code>decrypt-only</code>; it does not
+  compromise it, so data written under it stays readable.</li>
+<li>Nothing leaves <code>retired</code>, <code>destroyed</code> or <code>compromised</code> except as listed.
+  Material retired by mistake is recovered only through the restore
+  procedure, never by a state change.</li>
+</ul>
+<h3 id="what-the-store-enforces">What the store enforces<a class="headerlink" href="#what-the-store-enforces" title="Permanent link">&para;</a></h3>
+<p>The registry enforces what can be enforced structurally and atomically, so no
+caller can violate it by mistake. Policy lives above it.</p>
+<ul>
+<li><strong>The transition table</strong>, for key versions and for data keys. A refused
+  transition changes nothing and is <code>ErrInvalidTransition</code>.</li>
+<li><strong>One active version.</strong> Activating a version demotes the previous one in the
+  same transaction. Demoting the active version directly is refused: a version
+  stops being active by another being activated.</li>
+<li><strong>Rollback only to the most recent <code>decrypt-only</code> version</strong>
+  (<code>ErrNoRollbackTarget</code>).</li>
+<li><strong>Retirement needs its delay and no references.</strong> <code>retire-requested</code> records
+  a <code>retire_after</code> later than the request; completing before it is
+  <code>ErrRetireDelay</code>; retiring or destroying while any data key is still wrapped
+  under the version is <code>ErrVersionReferenced</code>. An emergency retirement of a
+  <code>compromised</code> version skips the delay and not the reference check.</li>
+<li><strong>A data key is wrapped under a usable version.</strong> Advancing an epoch
+  requires a version that is <code>active</code>, or <code>decrypt-only</code> (a client holding a
+  cached view may wrap under a version that has just been rotated out, and the
+  re-wrap job moves it). Re-wrapping targets only an <code>active</code> version.</li>
+<li><strong>Advancing and re-wrapping are compare-and-set.</strong> Concurrent writers
+  converge on one key, and repeating a completed re-wrap succeeds, so a
+  resumed job is safe.</li>
+<li><strong>The cap is exact.</strong> Reservations are granted up to the limit and never past
+  it, to a current <code>active</code> key only, however many callers race.</li>
+</ul>
+<p>Not enforced by the store, because they are policy: how many versions to
+retain, when to rotate, and whether a guard allows a destruction.</p>
+<h3 id="the-sql-store">The SQL store<a class="headerlink" href="#the-sql-store" title="Permanent link">&para;</a></h3>
+<p><code>sqlstore</code> implements the registry over Ent for SQLite and PostgreSQL, and the
+conformance suite runs against both. The memory store remains the reference
+for behaviour.</p>
+<ul>
+<li><strong>Uniqueness is in the database.</strong> Partial unique indexes allow one active
+  KEK per purpose, one active version per KEK, and one current data key per
+  purpose and subject, so a race that the transaction logic missed fails
+  instead of corrupting the registry. Each is also a lookup the operations
+  rely on.</li>
+<li><strong>Transactions.</strong> Every operation that changes state is one transaction. On
+  PostgreSQL it runs at the serializable level; on SQLite it begins
+  immediately, so writers queue, and the pool is held to one connection. A
+  serialization failure, a deadlock, a busy database or a unique violation from
+  a lost race is retried a bounded number of times, and the retry re-reads, so
+  a loser converges on the winner's record.</li>
+<li><strong>Stored forms.</strong> Identifiers are their 16 raw bytes, which both engines
+  order as <code>bytes.Compare</code> does, so a cursor over data keys means the same
+  thing everywhere. States are the small integers of the Go constants, and
+  changing one is a stored-format change. An absent time is <code>NULL</code>, never the
+  zero time. Times are read back in UTC.</li>
+<li><strong>A destroyed key keeps its record and loses its wrapped value</strong>, in the same
+  statement that changes its state, so there is no moment with a destroyed key
+  that still holds a wrapped one. The wrapping history (<code>wrapped_under</code>) is
+  kept, because it decides when a shred is complete.</li>
+<li><strong>The schema</strong> is created by an automatic migration when the store is
+  opened. Versioned migrations are a follow-up, and until then a schema change
+  is additive only.</li>
+<li><strong>Scale.</strong> The encryption counter takes a transaction per block reservation,
+  not per encryption, which is what keeps the data path off the database.</li>
+</ul>
+<h3 id="data-key-states">Data key states<a class="headerlink" href="#data-key-states" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Write</th>
+<th>Read</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>active</code></td>
+<td>yes</td>
+<td>yes</td>
+<td>The current epoch for a purpose and subject</td>
+</tr>
+<tr>
+<td><code>decrypt-only</code></td>
+<td>no</td>
+<td>yes</td>
+<td>A superseded epoch</td>
+</tr>
+<tr>
+<td><code>compromised</code></td>
+<td>no</td>
+<td>yes</td>
+<td>Marked by an operator; readable so what it protects can be re-encrypted. A compromised current key is replaced on the next write after a client's cached view of it expires (at most the cache TTL), and data under it is reported stale</td>
+</tr>
+<tr>
+<td><code>destroyed</code></td>
+<td>no</td>
+<td>no</td>
+<td>No usable wrapped key</td>
+</tr>
+</tbody>
+</table>
+<p>A current key is demoted only by advancing the epoch, never by marking it
+directly. <code>active</code> to <code>compromised</code> and <code>decrypt-only</code> or <code>compromised</code> to
+<code>destroyed</code> are the only direct changes; a <code>compromised</code> key stays
+<code>compromised</code> when the epoch advances.</p>
+<h3 id="registry-records">Registry records<a class="headerlink" href="#registry-records" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Key</strong>: <code>id</code>, <code>purpose</code>, <code>kind</code> (<code>kek</code>), <code>provider</code>, <code>state</code>, <code>created_at</code>.</li>
+<li><strong>Key version</strong>: <code>key_id</code>, <code>version</code>, <code>state</code>, <code>created_at</code>, <code>rotated_at</code>,
+  <code>retire_after</code>, <code>provider_ref</code>.</li>
+<li><strong>DEK</strong>: <code>id</code>, <code>purpose</code>, <code>subject</code> (optional), <code>epoch</code>, <code>kek_id</code>,
+  <code>kek_version</code>, <code>wrapped</code>, <code>state</code>, <code>reserved</code> (encryption-count high-water
+  mark, see <a href="#encryption-counter">Encryption counter</a>), <code>created_at</code>.</li>
+<li><strong>Jobs</strong> are not a registry record: their identity, state and resumption
+  belong to the OmniWorkflow provider that runs them (see Scheduling).</li>
+<li><strong>Event</strong>: the audit trail, also emitted to the sink.</li>
+</ul>
+<h2 id="envelope-format">Envelope format<a class="headerlink" href="#envelope-format" title="Permanent link">&para;</a></h2>
+<p>Two modes share one header.</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Holds</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Reference</strong> (default)</td>
+<td>The DEK identifier; the wrapped DEK lives in the registry</td>
+<td>Rows and values encrypted under a purpose or subject epoch. KEK rotation re-wraps registry records, so stored data is not touched</td>
+</tr>
+<tr>
+<td><strong>Inline</strong></td>
+<td>The wrapped DEK, KEK reference and version, beside the ciphertext</td>
+<td>Standalone objects: exports, snapshots, files. A fresh DEK per object</td>
+</tr>
+</tbody>
+</table>
+<p>Layout (version 1, big-endian):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>magic &quot;KF&quot; | format u8 | mode u8 | algorithm u8 | flags u8
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>purpose  : len u8 + bytes
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>reference: dek_id 16 bytes                       (reference mode)
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>inline   : kek_id 16 bytes, kek_version u32, wrapped_len u16, wrapped
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>nonce    : 12 bytes
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>ciphertext || tag
+</code></pre></div>
+<ul>
+<li><strong>Flags:</strong> all eight bits are reserved and must be zero in format 1. A
+  non-zero value fails with <code>ErrUnsupportedFlags</code>. Every bit assigned later is
+  critical: a reader that does not know a set bit rejects the envelope, so no
+  bit can be silently ignored. The flags byte is part of the AAD, so it
+  cannot be changed or stripped without failing authentication. A
+  known-answer vector covers the rejection.</li>
+<li><strong>Purpose names:</strong> 1 to 255 bytes of lowercase ASCII letters, digits, <code>.</code>,
+  <code>_</code> and <code>-</code>, beginning with a letter or digit. The restriction keeps a
+  purpose unambiguous in logs, configuration and the header; anything else is
+  <code>ErrInvalidPurpose</code>.</li>
+<li><strong>Field consistency:</strong> reference mode requires a non-zero data key ID and
+  no inline fields; inline mode requires a non-zero key-encryption key ID, a
+  wrapped key of 1 to 65535 bytes, and no data key ID. An inconsistent header
+  is <code>ErrInvalidHeader</code> on write and on parse.</li>
+<li><strong>Text form:</strong> <code>kf1.</code> followed by unpadded base64url, for text columns and
+  JSON. It has one spelling: padding, line breaks, the standard alphabet and
+  non-canonical trailing bits are rejected with <code>ErrBadTextForm</code>. A
+  well-formed prefix for another version is <code>ErrUnsupportedFormat</code>.</li>
+<li><strong>AAD:</strong> the header bytes up to the nonce, followed by the caller context.
+  Changing the purpose, key, mode or context makes decryption fail.</li>
+<li><strong>Algorithm 1 (registry ID 1):</strong> AES-256-GCM through <code>cipher.NewGCMWithRandomNonce</code>, the
+  only GCM constructor permitted under <code>fips140=only</code>. Its output begins with
+  the 12-byte random nonce, which the format stores in the header's nonce
+  field and restores on open. Each encryption is counted against the DEK's
+  cap (see <a href="#encryption-counter">Encryption counter</a>), and a DEK reaching its
+  cap is rotated to a new epoch before the NIST random-nonce limit of 2³²
+  invocations. The default cap is 2³⁰.</li>
+<li><strong>Forward compatibility:</strong> unknown <code>format</code>, <code>mode</code>, <code>algorithm</code> or <code>flags</code>
+  values fail with a typed error rather than a guess. The parser is fuzzed.</li>
+<li><strong>Typed errors:</strong> <code>ErrBadMagic</code>, <code>ErrTruncated</code>, <code>ErrUnsupportedFormat</code>,
+  <code>ErrUnknownMode</code>, <code>ErrUnknownAlgorithm</code>, <code>ErrUnsupportedFlags</code>,
+  <code>ErrInvalidPurpose</code>, <code>ErrInvalidHeader</code>, <code>ErrBadTextForm</code>, and
+  <code>ErrAuthentication</code>. The ones that report a value carry it in a
+  <code>ValueError</code>. <code>ErrAuthentication</code> carries no detail: a wrong key, a changed
+  header or context and a modified ciphertext are not distinguished.</li>
+<li><strong>Sealing and opening:</strong> the payload is sealed with an AEAD that generates
+  its own random nonce, which is split off the output and stored in the
+  header's nonce field, and reassembled on open. An AEAD that takes an
+  explicit nonce is refused (<code>ErrNotRandomNonce</code>), so a nonce can never be
+  chosen by a caller.</li>
+</ul>
+<h3 id="encryption-counter">Encryption counter<a class="headerlink" href="#encryption-counter" title="Permanent link">&para;</a></h3>
+<p>The cap must hold across replicas and crashes without a registry call per
+encryption, so encryptions are counted in blocks reserved from the registry:</p>
+<ul>
+<li>The DEK record holds <code>reserved</code>, a high-water mark. A process reserves a
+  block of B encryptions (default 2¹⁶) by advancing <code>reserved</code> with one
+  compare-and-set, and counts within the block in memory with an atomic
+  counter. Each replica holds its own block.</li>
+<li>A block that is not fully used (the process exits or crashes) counts as
+  used. <code>reserved</code> can therefore overstate the encryptions performed, never
+  understate them.</li>
+<li>A reservation is granted up to the cap and never past it, so the last block
+  of a key is partial. When nothing is left, or the key is no longer the
+  current epoch, the registry grants zero and the writer advances to a new
+  epoch; the write then proceeds under the new epoch's DEK. If no new epoch
+  can be created, the write fails closed.</li>
+<li>The cap should be far larger than the block size times the number of
+  concurrent writers. A write retries a bounded number of times when other
+  writers use up a key's capacity first, and fails closed with
+  <code>ErrKeyUnavailable</code> if it cannot get a key with capacity.</li>
+<li>During a registry outage, writes continue until the current block is
+  spent and then fail closed. Reads are unaffected.</li>
+<li>At the default cap and block size a DEK needs at most 2¹⁴ reservations in
+  its life, one registry write per 65,536 encryptions.</li>
+</ul>
+<h2 id="providers">Providers<a class="headerlink" href="#providers" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">Provider</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="nx">Name</span><span class="p">()</span><span class="w"> </span><span class="kt">string</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nx">CreateKey</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">spec</span><span class="w"> </span><span class="nx">KeySpec</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">KeyRef</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nx">Rotate</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">ref</span><span class="w"> </span><span class="nx">KeyRef</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">version</span><span class="w"> </span><span class="kt">uint32</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="nx">Wrap</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">ref</span><span class="w"> </span><span class="nx">KeyRef</span><span class="p">,</span><span class="w"> </span><span class="nx">version</span><span class="w"> </span><span class="kt">uint32</span><span class="p">,</span><span class="w"> </span><span class="nx">dek</span><span class="p">,</span><span class="w"> </span><span class="nx">aad</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nx">Unwrap</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">ref</span><span class="w"> </span><span class="nx">KeyRef</span><span class="p">,</span><span class="w"> </span><span class="nx">version</span><span class="w"> </span><span class="kt">uint32</span><span class="p">,</span><span class="w"> </span><span class="nx">wrapped</span><span class="p">,</span><span class="w"> </span><span class="nx">aad</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">)</span><span class="w"> </span><span class="p">([]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="nx">Destroy</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">,</span><span class="w"> </span><span class="nx">ref</span><span class="w"> </span><span class="nx">KeyRef</span><span class="p">,</span><span class="w"> </span><span class="nx">version</span><span class="w"> </span><span class="kt">uint32</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="nx">Health</span><span class="p">(</span><span class="nx">ctx</span><span class="w"> </span><span class="nx">context</span><span class="p">.</span><span class="nx">Context</span><span class="p">)</span><span class="w"> </span><span class="kt">error</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="p">}</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1">// KeyRef identifies a KEK. ID is keyforge&#39;s identifier, the one written in</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1">// envelopes; ProviderRef is the provider&#39;s own opaque identifier (a keyring</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="c1">// entry, a KMS key ARN or resource name), stored in the registry.</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="kd">type</span><span class="w"> </span><span class="nx">KeyRef</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nx">ID</span><span class="w">          </span><span class="nx">envelope</span><span class="p">.</span><span class="nx">ID</span><span class="w"> </span><span class="c1">// [16]byte</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nx">Provider</span><span class="w">    </span><span class="kt">string</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nx">ProviderRef</span><span class="w"> </span><span class="kt">string</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="p">}</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="c1">// KeySpec describes a KEK to create.</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="kd">type</span><span class="w"> </span><span class="nx">KeySpec</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a><span class="w">    </span><span class="nx">Purpose</span><span class="w">   </span><span class="kt">string</span><span class="w">       </span><span class="c1">// a valid purpose name; the provider may label with it</span>
+<a id="__codelineno-4-13" name="__codelineno-4-13" href="#__codelineno-4-13"></a><span class="w">    </span><span class="nx">Algorithm</span><span class="w"> </span><span class="nx">algorithm</span><span class="p">.</span><span class="nx">ID</span><span class="w"> </span><span class="c1">// from the registry</span>
+<a id="__codelineno-4-14" name="__codelineno-4-14" href="#__codelineno-4-14"></a><span class="w">    </span><span class="nx">ID</span><span class="w">        </span><span class="nx">envelope</span><span class="p">.</span><span class="nx">ID</span><span class="w">  </span><span class="c1">// optional: a key moved from another provider keeps its ID</span>
+<a id="__codelineno-4-15" name="__codelineno-4-15" href="#__codelineno-4-15"></a><span class="p">}</span>
+</code></pre></div>
+<ul>
+<li>The envelope carries only <code>ID</code>, so it stays provider-neutral and a key can
+  move between providers by updating the registry, not the data.</li>
+<li>A provider never returns KEK material. <code>Wrap</code> and <code>Unwrap</code> take the AAD
+  (purpose and key identity) so the wrap is bound to its use; a KMS provider
+  maps it to the service's encryption context.</li>
+<li><strong>Versions</strong> are numbered from 1 and increase. <code>CreateKey</code> makes version 1;
+  <code>Rotate</code> adds the next and returns its number, leaving earlier versions
+  usable for <code>Unwrap</code>. Which version is active is the registry's decision.</li>
+<li><strong>Errors are typed and carry no detail that helps an attacker:</strong>
+  <code>ErrKeyNotFound</code>, <code>ErrVersionNotFound</code>, <code>ErrVersionDestroyed</code>,
+  <code>ErrUnsupportedAlgorithm</code>, <code>ErrInvalidArgument</code>, and <code>ErrUnwrapFailed</code>,
+  which is the same for a wrong AAD, a wrong version or key, and a modified or
+  truncated wrapped key.</li>
+<li><code>Destroy</code> is irreversible and idempotent, so a retried job is safe. After it
+  <code>Wrap</code> and <code>Unwrap</code> for that version fail with <code>ErrVersionDestroyed</code>.</li>
+<li>Every method honors the context: with a cancelled context it returns an
+  error wrapping <code>ctx.Err()</code> and changes nothing. Providers neither retain nor
+  modify their inputs, return slices the caller owns, and are safe for
+  concurrent use.</li>
+<li>A provider that rotates natively (a managed KMS) reports the new version
+  from <code>Rotate</code>; one that does not (the local keyring) generates it.</li>
+<li>Every provider passes the same conformance suite, which also runs against
+  the local provider in CI.</li>
+<li>The test providers include one that versions natively, the way a managed
+  KMS does, so the interface is exercised by both rotation styles before any
+  cloud provider exists.</li>
+</ul>
+<h3 id="local-provider">Local provider<a class="headerlink" href="#local-provider" title="Permanent link">&para;</a></h3>
+<ul>
+<li>A <strong>keyring file</strong> (mode 0600) holds KEK versions, encrypted under a
+  <strong>root key</strong> obtained from a <code>RootKeySource</code> (an environment variable, a
+  file, or a secret manager such as omnivault). The root key never touches
+  disk beside the keyring.</li>
+<li><strong>The root key is 32 random bytes</strong>, supplied as base64 or hex by an
+  environment variable, a file, or code. keyforge does not stretch a
+  passphrase: a passphrase is not a key. A file source must not be readable by
+  group or others, and a root key file in the keyring's directory is refused.</li>
+<li>The keyring is sealed with AES-256-GCM under a key derived from the root key
+  with HKDF-SHA-256 (the standard library's <code>crypto/hkdf</code>). A <strong>root-key ID</strong>
+  is derived from the same root key under a different context string, so it
+  identifies the key without revealing it or the encryption key. It is stored
+  in the file's header, which is authenticated but not encrypted. Opening a
+  keyring with a different root key fails with <code>ErrWrongRootKey</code> before
+  decryption is attempted, so a wrong key is not reported as a corrupted file.</li>
+<li><strong>File format</strong> (frozen once a keyring exists): a fixed 32-byte header,
+  authenticated as the additional data, then the sealed payload.</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>magic &quot;KFKR&quot; | format u8 | reserved u8 | algorithm u8 | reserved u8
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>root key ID : 16 bytes
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>generation  : u64, big-endian
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>sealed      : nonce (12) || ciphertext || tag
+</code></pre></div>
+<p>The payload is JSON: for each KEK its identifier, purpose, algorithm, latest
+  version, and each version's key material or a destroyed marker. Reserved
+  bytes must be zero, and anything unrecognized is <code>ErrCorruptKeyring</code>.
+- <strong>Root-key rotation</strong> re-encrypts the keyring under a new root key in one
+  atomic write and records the new root-key ID. The keyring is small, so this
+  is a rewrite, not a job.
+- <strong>Escrow is the operator's.</strong> keyforge does not split or escrow the root
+  key; that would mean implementing a cryptographic scheme. The operations
+  guide documents keeping the root key in a secret manager with a second,
+  offline copy. The DR drill obtains the root key through a separately
+  configured recovery <code>RootKeySource</code>, so the escrow path is tested rather
+  than assumed.
+- Writes are atomic: take an advisory lock, re-read the file, apply the
+  change, write a temporary file in the same directory, fsync it, rename it
+  over the keyring, and fsync the directory (a no-op on Windows, where the
+  rename is itself atomic). A change is made against a fresh read under the
+  lock, so concurrent processes do not interleave and none loses another's
+  version. A crash leaves the previous keyring or the new one; temporary files
+  left behind are removed by the next writer.
+- The file is created with mode 0600, and a keyring that group or others can
+  read is refused. Opening a provider zeroes the root key after deriving from
+  it, and <code>Close</code> zeroes the key material the provider holds.
+- A monotonically increasing <strong>keyring generation</strong> is stored in the file's
+  authenticated header, where it can be read without the root key. Every
+  change, including a root key rotation, increases it, and a write is always
+  above every generation the host has seen, so generations are never reused.
+- <strong>Backup state</strong> is kept in a small file beside the keyring
+  (<code>&lt;keyring&gt;.backup</code>), not inside it: recording an acknowledgement in the
+  keyring would itself change its generation and leave it permanently one ahead
+  of its acknowledgement. It holds the highest generation seen and the last
+  acknowledged one with its time and a note. It is not authenticated: it
+  catches mistakes, not an attacker who can already replace the keyring.
+- <code>keyforge backup ack</code> records the generation of the copy the operator has
+  safely stored. It cannot acknowledge a generation the keyring has not
+  reached, or one older than the last acknowledgement. <code>status</code> reports a
+  keyring whose generation is ahead of the acknowledged one, and rotation under
+  a policy that requires a verified backup waits until the acknowledgement
+  catches up (otherwise a restored backup that predates a rotation would lose
+  data wrapped under the newer version).
+- <strong>Restoring an older copy is detected</strong> when the keyring is opened: a
+  generation below the highest this host has seen is <code>ErrKeyringRolledBack</code>,
+  naming both. An operator who intended the restore opens with the rollback
+  accepted, which clamps the acknowledgement to the restored generation and
+  continues numbering above everything seen. A copy can be compared with the
+  live keyring without the root key by reading its generation and root key
+  identifier from the header.
+- The provider is reported as <code>local</code> in status and in the startup log, so it
+  is not mistaken for a managed one.</p>
+<h2 id="client">Client<a class="headerlink" href="#client" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">Encrypt</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="nx">purpose</span><span class="p">,</span><span class="w"> </span><span class="nx">plaintext</span><span class="p">,</span><span class="w"> </span><span class="nx">context</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">Envelope</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">EncryptInline</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="nx">purpose</span><span class="p">,</span><span class="w"> </span><span class="nx">plaintext</span><span class="p">,</span><span class="w"> </span><span class="nx">context</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">Envelope</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">Decrypt</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="nx">purpose</span><span class="p">,</span><span class="w"> </span><span class="nx">e</span><span class="w"> </span><span class="o">*</span><span class="nx">Envelope</span><span class="p">,</span><span class="w"> </span><span class="nx">context</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="nx">plaintext</span><span class="w"> </span><span class="p">[]</span><span class="kt">byte</span><span class="p">,</span><span class="w"> </span><span class="nx">info</span><span class="w"> </span><span class="nx">Info</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="kd">func</span><span class="w"> </span><span class="p">(</span><span class="nx">c</span><span class="w"> </span><span class="o">*</span><span class="nx">Client</span><span class="p">)</span><span class="w"> </span><span class="nx">Reencrypt</span><span class="p">(</span><span class="nx">ctx</span><span class="p">,</span><span class="w"> </span><span class="nx">purpose</span><span class="p">,</span><span class="w"> </span><span class="nx">e</span><span class="w"> </span><span class="o">*</span><span class="nx">Envelope</span><span class="p">,</span><span class="w"> </span><span class="nx">context</span><span class="p">)</span><span class="w"> </span><span class="p">(</span><span class="o">*</span><span class="nx">Envelope</span><span class="p">,</span><span class="w"> </span><span class="kt">error</span><span class="p">)</span>
+</code></pre></div>
+<ul>
+<li><strong>Purposes are configured.</strong> A purpose the client was not given fails with
+  <code>ErrUnknownPurpose</code>. <code>New</code> validates every purpose against the algorithm
+  selector, so a configuration that widens the profile or leaves a purpose with
+  nothing to write with fails at startup.</li>
+<li><strong>Decrypt names the purpose</strong> it expects. An envelope for another purpose is
+  <code>ErrPurposeMismatch</code> before any key work, and the purpose is authenticated
+  in any case.</li>
+<li><strong>Reference mode</strong> (<code>Encrypt</code>) uses the purpose's current data key. <strong>Inline
+  mode</strong> (<code>EncryptInline</code>) generates a fresh data key per object and wraps it
+  under the purpose's active KEK version, so it contacts the provider once per
+  object to wrap, and once to unwrap an object the process has not seen. It is
+  for standalone objects, and not for a hot path against a managed key
+  service.</li>
+<li><strong>Reads</strong> are allowed under <code>active</code>, <code>decrypt-only</code> and <code>compromised</code> data
+  keys, so data can be re-encrypted away from a compromised one; a <code>destroyed</code>
+  key fails with <code>ErrKeyUnusable</code>. <strong>Writes</strong> use only the <code>active</code> key.</li>
+<li><strong><code>Info.Stale</code></strong> is true when the envelope's data key is not the current
+  epoch (reference mode) or its KEK version is older than the active one
+  (inline mode). <code>Reencrypt</code> decrypts and writes again under the current key in
+  the same mode; it always produces a new envelope, and callers use <code>Stale</code> to
+  skip current ones.</li>
+<li><strong>Time and randomness are injected:</strong> a clock and an entropy reader supply
+  cache expiry, data keys and identifiers. Nonces come from the AEAD's own
+  generator and are not drawn from the entropy reader.</li>
+<li><strong>Fail closed:</strong> when a key cannot be obtained (registry or provider down and
+  nothing cached, entropy failure), the operation returns <code>ErrKeyUnavailable</code>;
+  it never falls back to a weaker path.</li>
+</ul>
+<h3 id="wrapping-data-keys">Wrapping data keys<a class="headerlink" href="#wrapping-data-keys" title="Permanent link">&para;</a></h3>
+<p>A data key is wrapped by the provider with additional data that binds it to its
+record. The layout is part of the stored format, and changing it makes existing
+wrapped keys unreadable:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>reference: &quot;keyforge/dek/v1\x00&quot; | lp(purpose) | lp(subject) | dek_id (16) | kek_id (16)
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>inline:    &quot;keyforge/inline/v1\x00&quot; | lp(purpose) | kek_id (16)
+</code></pre></div>
+<p><code>lp</code> is a u32 big-endian length followed by the bytes. The subject is empty for
+a purpose-wide key. A wrapped key therefore cannot be moved to another purpose,
+subject or record, and the re-wrap job recomputes the same additional data when
+it moves a key to a new KEK version.</p>
+<h2 id="policy">Policy<a class="headerlink" href="#policy" title="Permanent link">&para;</a></h2>
+<p>Policy is declared per purpose and is data: the <code>policy</code> package holds it and
+the rotation and retirement code acts on it. A deployment has a default and
+per-purpose overrides; a field a purpose leaves unset inherits.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kekInterval</code></td>
+<td>365 days</td>
+<td>How long a KEK version is active before rotation</td>
+</tr>
+<tr>
+<td><code>dekMaxAge</code></td>
+<td>90 days</td>
+<td>How long a data key epoch is current</td>
+</tr>
+<tr>
+<td><code>dekMaxEncryptions</code></td>
+<td>2³⁰</td>
+<td>Cap on encryptions per data key</td>
+</tr>
+<tr>
+<td><code>retirementDelay</code></td>
+<td>30 days</td>
+<td>Wait between a request to retire a version and its retirement</td>
+</tr>
+<tr>
+<td><code>retainVersions</code></td>
+<td>2</td>
+<td>Floor on versions kept: the active one and the most recent decrypt-only ones</td>
+</tr>
+<tr>
+<td><code>requireBackup</code></td>
+<td>false</td>
+<td>Rotation waits until the keyring backup is acknowledged as current</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>A purpose can only tighten <code>requireBackup</code></strong>: it can ask for a backup the
+  default does not require, and cannot waive one the default does.</li>
+<li><strong>The retirement delay must far exceed the cache TTL</strong> (at least ten times),
+  so that no data key can appear under a version that is already eligible for
+  retirement. A set that violates this fails validation.</li>
+<li>The encryption cap must not exceed 2³¹, well below the 2³² random-nonce
+  limit.</li>
+<li>Durations are written with a day suffix in configuration (<code>365d</code>, <code>36h</code>), and
+  an unknown field is an error so a misspelled setting is not ignored.</li>
+</ul>
+<h2 id="rotation">Rotation<a class="headerlink" href="#rotation" title="Permanent link">&para;</a></h2>
+<h3 id="kek-rotation-automatic-default-365-days">KEK rotation (automatic, default 365 days)<a class="headerlink" href="#kek-rotation-automatic-default-365-days" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Create the next version at the provider and register it as <code>pending</code>.</li>
+<li>Mark it <code>active</code> and the previous version <code>decrypt-only</code>, in one registry
+   transaction.</li>
+<li>Record a <strong>sentinel</strong> for the new version: a fixed, non-secret marker sealed
+   as an inline envelope under a fresh data key wrapped by that version. The
+   recovery drill decrypts it to prove a restored registry and keyring can still
+   use the version.</li>
+<li>A resumable job re-wraps DEK records still wrapped under the old version,
+   in batches, recording a cursor. Each batch unwraps with the old version
+   and wraps with the new one using the same additional data, then replaces the
+   record with a compare-and-set on the version it read; it is idempotent.</li>
+<li>
+<p>When no DEK record references the old version, it becomes eligible for
+   retirement, subject to the retained-versions rule below.</p>
+</li>
+<li>
+<p><strong>The interval is measured from activation</strong>, recorded as <code>ActivatedAt</code> on
+  every activation including a rollback, and not from creation.</p>
+</li>
+<li><strong>Rotation resumes.</strong> A version left <code>pending</code> by an interrupted rotation is
+  activated instead of creating another at the provider. The provider call and
+  the registration are not one transaction, so a crash between them leaves at
+  worst an unused version at the provider.</li>
+<li><strong>The re-wrap does not stop at a bad key.</strong> A data key that cannot be moved
+  is counted and reported, the rest are moved, and the run is not <code>done</code>, so a
+  version that is still referenced is not retired. Overlapping runs are safe:
+  the compare-and-set makes one the winner and the other count the key as
+  already moved.</li>
+<li><strong>Rollback</strong> reactivates the most recent decrypt-only version and demotes the
+  active one in the same transaction. Data keys wrapped under the demoted
+  version still unwrap under it.</li>
+<li><strong>A backup requirement waits.</strong> Where policy requires a verified backup and
+  the keyring's backup is not acknowledged as current, rotation is refused with
+  <code>ErrBackupStale</code>, and is refused with <code>ErrBackupUnknown</code> if the provider
+  cannot say. It fails closed.</li>
+</ol>
+<h3 id="retained-versions">Retained versions<a class="headerlink" href="#retained-versions" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Policy keeps the last two versions.</strong> <code>retain_versions</code> defaults to 2: the
+  active version and the most recent <code>decrypt-only</code> version are never
+  retired, even when nothing references the latter. It stays usable for
+  rollback: if the active version turns out to be bad (a provider fault, a
+  wrong configuration), the previous one is reactivated (see
+  <a href="#transitions">Transitions</a>) and nothing needs recovering. Counting by state
+  rather than by number keeps the rule well defined after a rollback.</li>
+<li><strong>Older versions (N-2 and below) become eligible for retirement only when
+  all of these hold:</strong> no DEK record or tracked object references them; the
+  retirement delay has passed; no hold covers data they protect; and the
+  guard allows it. The count is a floor on retention, never a trigger to
+  delete.</li>
+<li><strong>Re-wrap promptly.</strong> The re-wrap job starts as soon as a new version is
+  active, so references to N-1 drain quickly and N-1 is held only as the
+  rollback margin.</li>
+<li><strong>Data outside the registry is the limit.</strong> An inline envelope, an export,
+  a snapshot or a backup is not re-wrapped by the job. A version that
+  protects such data stays until the host asserts, through the guard, that no
+  such data remains or accepts its loss, and the backups' retention sets how
+  long old versions must be kept to restore them.</li>
+<li><strong>Signing keys add a pre-publish step</strong> (later release): version N+1 is
+  published for verification before it signs anything, N signs, and N-1 stays
+  verify-only for at least the longest token lifetime plus the longest cache
+  time of a relying party's key set, and then is retired by the same rules.</li>
+</ul>
+<p>Stored application data is unchanged throughout. In inline mode there are no
+registry records to re-wrap: an old version stays <code>decrypt-only</code> until the
+host asserts, through the guard, that nothing references it (for example
+after a lazy <code>Reencrypt</code> pass or because the objects expired).</p>
+<h3 id="data-key-rotation-automatic-default-90-days-or-volume-cap">Data-key rotation (automatic, default 90 days or volume cap)<a class="headerlink" href="#data-key-rotation-automatic-default-90-days-or-volume-cap" title="Permanent link">&para;</a></h3>
+<p>A new epoch for a purpose (or subject) is created when the current one
+reaches its age or its encryption cap. New writes use it; old epochs are
+<code>decrypt-only</code>. <code>Decrypt</code> returns a <code>Stale</code> indication when the envelope's
+epoch is no longer current, and <code>Reencrypt</code> produces a current envelope, so
+hosts can rewrite data on its next write or in a throttled background pass.
+No pass is required for correctness.</p>
+<ul>
+<li><strong>Age is measured from the record's creation time</strong>, which comes from the
+  registry, so every replica agrees on it. A write that finds the current epoch
+  at or past its maximum age creates the next one; replicas racing to do so
+  converge on one through the registry's compare-and-set. An epoch is used for
+  less than its lifetime, never up to and past it.</li>
+<li>Age and volume are independent triggers: whichever is reached first rolls the
+  epoch. The client's per-purpose configuration takes both from policy.</li>
+<li>An old epoch is not stranded: it keeps decrypting, reports <code>Stale</code>, and its
+  data moves to the current epoch on the host's next write or by <code>Reencrypt</code>.</li>
+</ul>
+<h3 id="per-subject-keys-and-crypto-shredding">Per-subject keys and crypto-shredding<a class="headerlink" href="#per-subject-keys-and-crypto-shredding" title="Permanent link">&para;</a></h3>
+<p>A purpose can be declared <strong>per-subject</strong>: each subject (a user, a tenant) gets
+its own DEK epochs, written with <code>EncryptFor(purpose, subject, ...)</code>. The
+subject is not in the envelope: the envelope names its data key, and the
+registry knows whose key that is. A subject is 1 to 255 bytes of valid UTF-8
+with no control characters, and it is part of the additional data the key is
+wrapped with, so a wrapped key cannot be moved to another subject. A per-subject
+purpose rejects a write without a subject, and any other purpose rejects one
+with a subject.</p>
+<p>Shredding a subject destroys its DEKs, which makes its data unrecoverable
+wherever the ciphertext was copied.</p>
+<p>Destroying a DEK record does not complete the shred on its own. Registry
+backups still hold the subject's DEK wrapped under the KEK versions that were
+active while it existed, and while any of those versions survives, a restored
+backup can unwrap it. So:</p>
+<ul>
+<li><strong>Every data key keeps a history</strong> of the KEK versions it has been wrapped
+  under, in order. A re-wrap moves a key to a newer version but an older backup
+  still holds it under the previous one, so the history is what decides which
+  versions matter.</li>
+<li><strong>Requesting a shred</strong> destroys every data key of the subject under the
+  purpose, in every state, removes their wrapped values, clears the current key,
+  and records the union of their histories. It is atomic and idempotent, and
+  leaves a <strong>tombstone</strong>: a new key for the subject is refused with
+  <code>ErrSubjectShredded</code>, because an erasure that quietly re-enrolled the subject
+  would not be one.</li>
+<li><strong>A shred is complete when every KEK version in that record is destroyed.</strong>
+  It is reported as <code>pending</code>, with the outstanding versions and an expected
+  date, until then. Completing is checked by the registry, not asserted.</li>
+<li><strong>The expected date follows from policy:</strong> a version leaves the retained
+  floor after that many further rotations, one KEK interval apart, and then
+  waits out the retirement delay. With the defaults (365 days, two retained
+  versions, 30 days) that is more than two years for a version that is active
+  today, plus backup retention. A purpose that needs a faster erasure guarantee
+  sets a shorter KEK interval.</li>
+<li>A subject with no keys completes at once, and is still tombstoned.</li>
+<li><strong>Caches.</strong> A client that has the subject's key cached keeps using it until
+  the entry expires or <code>Purge</code> is called, so the live registry stops serving the
+  key at once and a process may serve it for up to the cache TTL. A host that
+  needs the erasure effective at once purges its clients.</li>
+<li>Shredding is per-subject reference mode only. Inline envelopes carry their
+  own wrapped key and are shredded only by destroying the KEK versions or the
+  objects.</li>
+</ul>
+<h3 id="retirement-and-destruction">Retirement and destruction<a class="headerlink" href="#retirement-and-destruction" title="Permanent link">&para;</a></h3>
+<p>Retirement and destruction are separate steps, each consulting the <strong>guard</strong>,
+because the facts can change between them.</p>
+<ol>
+<li><strong>Request.</strong> A decrypt-only version outside the retained-versions floor moves
+   to <code>retire-requested</code> and the delay starts (default 30 days, per purpose).
+   References do not stop the request: the re-wrap can finish during the delay.</li>
+<li><strong>Complete.</strong> After the delay, with no data key in the registry wrapped under
+   the version, the guard is asked. Only an <strong>allow</strong> moves it to <code>retired</code>.
+   <strong>Deny</strong> returns it to <code>decrypt-only</code>, usable, with the denial recorded, and it
+   can be requested again. <strong>Pending</strong> (an approval is outstanding) leaves it
+   <code>retire-requested</code> and the guard is asked again on the next pass. A guard
+   that <strong>fails</strong>, or is <strong>absent</strong>, advances nothing: the absence of a veto is
+   not consent, and a zero decision is not an allow.</li>
+<li>
+<p><strong>Destroy.</strong> A <code>retired</code> version's material is destroyed at the provider,
+   after the guard is asked again. The order is guard, then provider, then
+   registry. Destroying at the provider is idempotent, so a crash between the
+   last two is repaired by calling again; the reverse order could record a
+   destruction that did not happen.</p>
+</li>
+<li>
+<p><strong>A retired version is not usable</strong>, even though the provider still holds its
+  material until step 3: the client asks the registry whether a version may be
+  unwrapped, on the first unwrap and then from its cache, and refuses
+  <code>retired</code>, <code>destroyed</code> and <code>pending</code>. Retiring therefore has an effect on its
+  own, and not only at destruction.</p>
+</li>
+<li>Destruction is irreversible at the provider. Where a provider offers a
+  deletion window, it can be used to schedule the destruction and cancel it
+  inside the window; the provider interface does not yet expose one.</li>
+<li>The guard sees the action, the purpose, the KEK version, how many registry
+  data keys still reference it (zero at completion), who asked, and whether the
+  procedure is an emergency. It cannot see data outside the registry, which is
+  why the host supplies it: an inline envelope, an export, a snapshot or a
+  backup that needs the version is the host's to know.</li>
+<li>Every outcome is an audit event: <code>key.retire_requested</code>, <code>key.retired</code>,
+  <code>key.retire_cancelled</code>, <code>key.destroyed</code>, <code>guard.denied</code>, <code>guard.pending</code>.</li>
+</ol>
+<h3 id="emergency-rotation">Emergency rotation<a class="headerlink" href="#emergency-rotation" title="Permanent link">&para;</a></h3>
+<p>Separate from scheduled rotation, and audited as such. It differs in three
+ways: it does not wait for a backup to be acknowledged, it has no retirement
+delay, and the guard is <strong>asked and its answer recorded, but it cannot block</strong>.
+A guard that denies, is pending, fails or is absent is on the trail and does not
+stop the procedure.</p>
+<p><strong>KEK compromised.</strong> For a version that is known or suspected to be exposed:</p>
+<ol>
+<li>If it is active, replace it: the activation demotes it in the same
+   transaction, so there is no moment without an active version and nothing new
+   is wrapped under it afterwards. (A client holding a cached view can wrap
+   under it until its entry expires; the re-wrap covers those, and a repeat call
+   picks up stragglers.) A version that is not active needs no replacement.</li>
+<li>Mark it <code>compromised</code>.</li>
+<li>Re-wrap every data key away from it.</li>
+<li>Ask the guard and record the answer.</li>
+<li>
+<p>Retire it, then destroy it at the provider, unless asked to keep the
+   material.</p>
+</li>
+<li>
+<p>It is <strong>idempotent and resumable</strong>. If any data key cannot be moved the
+  version stays <code>compromised</code> and referenced, is not retired or destroyed, and
+  the call reports it as incomplete with the progress; calling again continues
+  without repeating the replacement or the marking.</p>
+</li>
+<li><strong>Data outside the registry</strong> (inline envelopes, exports, snapshots) wrapped
+  under the version is not covered by the re-wrap and is lost when it is
+  destroyed. <code>KeepMaterial</code> stops after retirement so the host can recover what
+  it needs before destroying through the usual guarded path.</li>
+</ol>
+<p><strong>DEK exposed.</strong> For a data key known or suspected to be exposed:</p>
+<ol>
+<li>If it is the current epoch, create the next epoch first, so writes move off
+   it at once.</li>
+<li>Mark it <code>compromised</code>. It stays readable.</li>
+<li>The <strong>host re-encrypts</strong> what it protects, with <code>Reencrypt</code> as it meets each
+   record or in a pass of its own: the data is the application's, and keyforge
+   cannot do it. The report gives an <strong>upper bound</strong> on how much was encrypted
+   under the key, the registry's reserved high-water mark, which can overstate;
+   which records are affected is found by the data key identifier their
+   envelopes carry.</li>
+<li>When the host is done it destroys the key through the guard. Destroying
+   removes the wrapped value and keeps the record as the trail.</li>
+</ol>
+<h2 id="rotation-drill">Rotation drill<a class="headerlink" href="#rotation-drill" title="Permanent link">&para;</a></h2>
+<p>Real keys rotate on their policy (KEK yearly, data keys quarterly or by
+volume). A schedule that is that slow is also one that nobody exercises, so
+the mechanism is exercised on a key that holds nothing:</p>
+<ul>
+<li>keyforge maintains a built-in <strong>canary purpose</strong>, enabled by default, that
+  runs the full lifecycle on a weekly schedule: create a version, activate
+  it, re-wrap, encrypt and decrypt across the old and new versions, roll back
+  to the previous version and forward again, retire after a short delay, and
+  destroy the retired version.</li>
+<li>Every step is the code path real keys use, against the configured provider
+  and registry, so a provider credential that has expired or a job that stalls
+  surfaces in the canary within a week and not at the first real rotation.</li>
+<li>A failed or overdue drill is an alert and appears in <code>status</code>; a successful
+  one is an audit event with its duration.</li>
+<li><code>keyforge verify</code> runs the same drill on demand and across every purpose's
+  read path (decrypt a sample of stored envelopes without returning data).</li>
+<li>The drill's interval is configurable, and a deployment with a managed
+  provider that charges per key version may lengthen it.</li>
+</ul>
+<p>Real keys are not rotated weekly by default: more frequent rotation adds
+versions, re-wrap work and audit volume without a matching security gain, and
+for the local provider each rotation is another keyring that must be backed
+up. Policy lets a deployment shorten the interval for a purpose.</p>
+<h2 id="disaster-recovery-drill">Disaster-recovery drill<a class="headerlink" href="#disaster-recovery-drill" title="Permanent link">&para;</a></h2>
+<p>The rotation drill proves the mechanism works. The DR drill proves the state
+can be recovered: that a keyring and registry restored from backup can still
+decrypt everything they are supposed to. It runs without a person, and every
+judgment that is not mechanical is made by an analyst agent that writes the
+report.</p>
+<h3 id="mechanical-part-the-drill-engine">Mechanical part (the drill engine)<a class="headerlink" href="#mechanical-part-the-drill-engine" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Provision an isolated environment</strong> with no network path to production
+   and no write access to production state, through a host-supplied
+   <code>RestoreTarget</code>.</li>
+<li><strong>Fetch the latest backups</strong> of the registry and, for the local provider,
+   the keyring, through a host-supplied <code>BackupSource</code>, and verify their
+   digests.</li>
+<li><strong>Check the recovery point.</strong> Compare the restored keyring generation and
+   registry state with the acknowledged and current ones. A restore that
+   predates a rotation or a key version is a failure, not a warning.</li>
+<li><strong>Start keyforge in recovery mode</strong> against the restored state, with the
+   same profile and provider configuration as production, and the root key
+   obtained the way an operator would during a real recovery: through the
+   recovery <code>RootKeySource</code> (the secret manager or the escrowed copy), not
+   from the production process.</li>
+<li><strong>Decrypt sentinels.</strong> Keyforge writes a sentinel envelope per purpose
+   and key version, whose plaintext is a fixed, non-secret marker, and keeps
+   them with the registry. The drill decrypts every sentinel for every
+   retained version. A version that cannot decrypt its sentinel is a
+   critical failure.</li>
+<li><strong>Sample real data.</strong> Through a host-supplied <code>Sampler</code>, the drill
+   decrypts a bounded sample of real envelopes per purpose, checking only
+   that authentication and decryption succeed. Plaintext is discarded and
+   never logged. The <code>Sampler</code> is optional: without one, the step is recorded
+   as not run and appears among the drill's limits in the result and the
+   report.</li>
+<li><strong>Measure</strong> time to first successful decrypt (the recovery time), the age
+   of the backup and the generation gap (the recovery point), and the
+   duration of each step.</li>
+<li><strong>Run negative checks:</strong> a deliberately stale keyring copy must be
+   detected, and an envelope under a destroyed version must fail with the
+   expected typed error, so the drill proves its own checks can fail.</li>
+<li><strong>Destroy the environment</strong> and verify that no key material or restored
+   state remains.</li>
+<li><strong>Emit the result:</strong> a JSON document of steps, outcomes, metrics, versions
+    and digests. It contains key identifiers and versions at most, never key
+    material or plaintext.</li>
+</ol>
+<p>Objective outcomes (each step passed or failed, whether the recovery time and
+point are within configured limits) are decided by the engine and are final.</p>
+<h3 id="judgment-part-the-analyst-and-the-report">Judgment part (the analyst and the report)<a class="headerlink" href="#judgment-part-the-analyst-and-the-report" title="Permanent link">&para;</a></h3>
+<p>Some conclusions are not mechanical: how serious a result is, whether a
+metric is trending toward a limit, what probably caused a failure, what to
+change first. These are made by an <strong>analyst</strong>, an agent supplied by the host
+through an <code>Analyst</code> interface. keyforge core has no dependency on any model
+or agent framework.</p>
+<ul>
+<li><strong>Input:</strong> the result document, the previous drills' results and reports,
+  and sanitized logs. <strong>The analyst never receives key material, plaintext, or
+  access to the restored environment.</strong></li>
+<li><strong>Output:</strong> a DR report in Markdown and JSON, with: the objective verdict;
+  metrics and trends; each finding with severity, evidence and likely cause;
+  prioritized recommendations; the limits of the drill (what it did not
+  cover); and provenance (analyst identity, model, time, inputs by digest).</li>
+<li><strong>Standing:</strong> the analyst's conclusions are advisory and cannot change
+  policy, key state or the objective verdict. In the exported crypto
+  specification the drill's objective results are <code>verified</code> evidence and the
+  analyst's conclusions are <code>inferred</code> until a person attests them.</li>
+<li><strong>Escalation:</strong> a failed drill or a critical finding raises an alert
+  through the audit sink, whatever the report says.</li>
+</ul>
+<h3 id="schedule-and-triggers">Schedule and triggers<a class="headerlink" href="#schedule-and-triggers" title="Permanent link">&para;</a></h3>
+<p>The drill runs quarterly by default, and on demand (<code>keyforge drill</code>), and
+after a change to the provider, the backup configuration or the registry's
+location. A drill that is overdue is reported in <code>status</code> and alerts, like an
+overdue rotation. The report is stored with the audit trail and is evidence
+for the recovery claims in the crypto specification.</p>
+<h3 id="interfaces-the-host-supplies">Interfaces the host supplies<a class="headerlink" href="#interfaces-the-host-supplies" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Interface</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BackupSource</code></td>
+<td>Fetch the latest registry and keyring backups and their digests</td>
+</tr>
+<tr>
+<td><code>RestoreTarget</code></td>
+<td>Provision and destroy the isolated environment</td>
+</tr>
+<tr>
+<td><code>Sampler</code></td>
+<td>Return a bounded sample of real envelopes per purpose (optional)</td>
+</tr>
+<tr>
+<td><code>Analyst</code></td>
+<td>Turn the result document into the report</td>
+</tr>
+<tr>
+<td><code>ReportSink</code></td>
+<td>Store the report and result with the audit trail</td>
+</tr>
+</tbody>
+</table>
+<p>All five interfaces are defined in keyforge, because the drill engine calls
+them; hosts implement them. keyforge ships local-filesystem implementations
+of <code>BackupSource</code>, <code>RestoreTarget</code> and <code>ReportSink</code>, so the engine is tested
+end to end and a single-host deployment can drill without writing any.</p>
+<h2 id="scheduling">Scheduling<a class="headerlink" href="#scheduling" title="Permanent link">&para;</a></h2>
+<p>Lifecycle work runs as jobs on <a href="https://github.com/plexusone/omniworkflow">OmniWorkflow</a>,
+through its provider-neutral <code>WorkflowProvider</code>. The <code>jobs</code> package supplies the
+scheduler that notices what is due and the executor that does each step; any
+OmniWorkflow provider runs them: in-memory, the durable embedded provider,
+Temporal, or Step Functions.</p>
+<ul>
+<li><strong>Operations are idempotent and resumable by construction</strong>, which is what
+  makes at-least-once step delivery safe: a rotation re-checks that it is due,
+  a re-wrap moves only what has not moved, and the guarded steps ask the guard
+  again.</li>
+<li><strong>Exactly one execution without leader election.</strong> Every job has a
+  deterministic run ID built from what it does and to what (for example
+  <code>keyforge/rotate-kek/&lt;kek&gt;/&lt;version&gt;#&lt;attempt&gt;</code>). OmniWorkflow's <code>Start</code> is
+  idempotent by run ID, so several replicas that find the same work due start
+  the same run and one execution results. keyforge keeps no lease.</li>
+<li><strong>Time is the scheduler's.</strong> A plan has no timers, so a tick evaluates the
+  registry and starts short jobs: a rotation when a version is past its
+  interval, a drain of any non-active version still holding data keys, a
+  retirement request for a version outside the floor, a completion once the
+  delay has passed, a destruction once retired, and the recording of finished
+  erasures. A retirement delay, or a guard that is still pending, is a
+  condition the next tick finds still true.</li>
+<li><strong>Attempts.</strong> A finished run is terminal, and <code>Start</code> on its ID returns it
+  without running again, so each new attempt has a new number. A run that
+  succeeded while its condition still holds (a pending approval) is followed by
+  another only after a recheck interval; one that failed is followed by one
+  after a backoff that doubles up to a ceiling. A failure is reported once, with
+  a <code>job.failed</code> event, and stays in the tick result while it is the latest word.</li>
+<li><strong>Overdue work is reported, not silently kept</strong>: a rotation past its date is
+  listed in every tick's result, whether or not a job is running for it.</li>
+<li><strong>Resumption.</strong> With the durable provider a run left unfinished by a crash
+  resumes under the same run ID when the worker starts. The durable provider is
+  single-process; a deployment with several replicas gives the scheduler and
+  worker a shared provider such as Temporal.</li>
+<li><strong>Guard approvals</strong> are the host's callback. A <code>Pending</code> answer leaves the
+  version where it is and the next tick asks again, so a long wait for an
+  approval costs one short job per recheck interval and not a held run.</li>
+</ul>
+<h2 id="caching-and-availability">Caching and availability<a class="headerlink" href="#caching-and-availability" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Unwrapped DEKs are cached in process with a TTL (default 5 minutes) and a
+  size bound with least-recently-used eviction. The raw key is zeroed as soon
+  as the cipher has been constructed, and only the cipher is cached; Go gives
+  no guarantee about the cipher's expanded key schedule.</li>
+<li>The client also caches the current data key record per purpose and subject,
+  the active KEK version per purpose, and KEK references, under the same TTL.
+  <code>Stale</code> is computed from the cached current record, so it is advisory: an
+  outage can hide it, and it never fails a read.</li>
+<li>A key destroyed or retired in the registry can still be used from a cache
+  until its entry expires. <code>Purge</code> drops every cached key at once for a host
+  that needs immediacy.</li>
+<li>A client that cached the active KEK version keeps wrapping new data keys
+  under it until the entry expires, so a data key can be created under a
+  version that has just stopped being active. The re-wrap job covers those
+  records, and the retirement delay (30 days by default) must be far longer
+  than the cache TTL (5 minutes by default) so that no such record can appear
+  after a version is eligible for retirement.</li>
+<li>Reads and writes for cached DEKs continue during a registry or provider
+  outage. A key not in the cache fails closed.</li>
+<li>A cache hit after a KEK rotation is still correct: the unwrapped DEK did
+  not change.</li>
+</ul>
+<h2 id="audit">Audit<a class="headerlink" href="#audit" title="Permanent link">&para;</a></h2>
+<p>Events carry an ID, time, actor (supplied by the host), action, purpose,
+key and version, outcome, and a reason, and never key material. Actions
+include <code>key.created</code>, <code>key.rotated</code>, <code>key.activated</code>, <code>key.rolled_back</code>,
+<code>key.retire_requested</code>, <code>key.retire_cancelled</code>, <code>key.retired</code>, <code>key.destroyed</code>, <code>key.compromised</code>, <code>wrap.failed</code>,
+<code>subject.shred_requested</code>, <code>subject.shred_completed</code>, <code>admin.read</code>,
+<code>guard.denied</code>, <code>guard.pending</code>, <code>job.failed</code>, <code>backup.stale</code>.
+Ordinary encrypt and decrypt are not logged individually; their rates and
+failures are metered.</p>
+<p>Metrics go through a small <code>Metrics</code> interface in the core (counters, gauges and
+duration observations), with a no-op default. An adapter to Prometheus or
+OpenTelemetry is a few lines over it and lives in the host or a separate module,
+so the core keeps its dependency rule.</p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Type</th>
+<th>Labels</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>keyforge_operations_total</code></td>
+<td>counter</td>
+<td><code>op</code>, <code>purpose</code>, <code>outcome</code></td>
+</tr>
+<tr>
+<td><code>keyforge_operation_duration</code></td>
+<td>observation</td>
+<td><code>op</code>, <code>purpose</code></td>
+</tr>
+<tr>
+<td><code>keyforge_cache_lookups_total</code></td>
+<td>counter</td>
+<td><code>cache</code> (dek, inline, current), <code>result</code></td>
+</tr>
+<tr>
+<td><code>keyforge_epoch_advances_total</code></td>
+<td>counter</td>
+<td><code>purpose</code>, <code>reason</code> (first, cap, age, not_active, manual)</td>
+</tr>
+<tr>
+<td><code>keyforge_kek_rotations_total</code></td>
+<td>counter</td>
+<td><code>purpose</code>, <code>outcome</code></td>
+</tr>
+<tr>
+<td><code>keyforge_rewrapped_keys_total</code></td>
+<td>counter</td>
+<td><code>outcome</code> (moved, skipped, failed)</td>
+</tr>
+<tr>
+<td><code>keyforge_kek_rotation_overdue_seconds</code></td>
+<td>gauge</td>
+<td><code>purpose</code></td>
+</tr>
+<tr>
+<td><code>keyforge_jobs_started_total</code>, <code>keyforge_jobs_failed_total</code></td>
+<td>counter</td>
+<td><code>kind</code></td>
+</tr>
+<tr>
+<td><code>keyforge_jobs_waiting</code>, <code>keyforge_jobs_in_flight</code></td>
+<td>gauge</td>
+<td>none</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Labels are bounded by construction.</strong> The purpose is a configured name, and
+  one the client is not configured for is reported as <code>unknown</code>; an outcome is
+  one of a small fixed set (<code>ok</code>, <code>unavailable</code>, <code>unusable</code>, <code>authentication</code>,
+  <code>invalid</code>, <code>refused</code>, <code>shredded</code>, <code>error</code>). A subject, a key identifier, a
+  context or an error message is never a label.</li>
+<li><strong>The overdue gauge is reported as zero when nothing is late</strong>, for every
+  configured purpose, so a recovered rotation clears an alert instead of leaving
+  a stale value.</li>
+</ul>
+<h2 id="status">Status<a class="headerlink" href="#status" title="Permanent link">&para;</a></h2>
+<p><code>status.Reporter.Report</code> assembles one point-in-time view for an operator, a
+service endpoint or a ticket. It holds identifiers, states, counts and times,
+and never key material, wrapped keys or plaintext.</p>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Crypto</td>
+<td>The active algorithm profile and its exact algorithm names, whether the process is in FIPS mode and whether non-approved algorithms are refused outright, and the Go cryptographic module version</td>
+</tr>
+<tr>
+<td>Providers</td>
+<td>Each provider's name and health, and for a provider with a keyring its backup state: generation, acknowledged generation, how far behind, and the note</td>
+</tr>
+<tr>
+<td>Purposes</td>
+<td>Per purpose: the KEK and provider, every version with its state, activation, rotation and retirement times, how many data keys still reference it, whether it may be retired and why not; the next rotation and how overdue; data keys by state; and the policy in force</td>
+</tr>
+<tr>
+<td>Erasures</td>
+<td>Each pending subject erasure with how many KEK versions remain and when it is expected to finish</td>
+</tr>
+<tr>
+<td>Jobs</td>
+<td>The scheduler's latest tick: work in flight, work held back, and jobs whose latest attempt failed with their consecutive failures</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong><code>Healthy</code> is false when anything needs an operator</strong>, and <code>Problems</code> says in
+  plain words what: an unhealthy provider, an overdue rotation, a keyring ahead
+  of its acknowledged backup, a purpose with no active version (writes fail
+  closed), compromised data keys not yet destroyed, or a failing job.</li>
+<li><strong>A part that cannot be read is reported as such and does not hide the rest.</strong>
+  An outage of one provider is what the report is for.</li>
+<li>The provider is reported by its name, <code>local</code> for the keyring provider, so it
+  is not mistaken for a managed one.</li>
+</ul>
+<h2 id="control-plane">Control plane<a class="headerlink" href="#control-plane" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Service:</strong> an <code>http.Handler</code> (package <code>service</code>) over the library, with no
+  logic of its own. Mounting, TLS and authentication are the host's: it
+  authenticates in its own middleware, names the caller with <code>audit.WithActor</code>
+  so the events a request causes are attributed, and supplies an <code>Authorizer</code>
+  (<code>Authorize(ctx, action, purpose) error</code>) that is asked before every action.
+  There is no default: a service with no authorizer cannot be constructed.</li>
+<li><strong>CLI:</strong> <code>keyforge status</code>, <code>health</code>, <code>purposes</code>, <code>rotate</code>, <code>rollback</code>,
+  <code>rewrap</code>, <code>retire request|complete|cancel</code>, <code>destroy</code>, <code>compromise</code>,
+  <code>datakey compromise|destroy</code>, <code>backup ack</code>, <code>shred request|status</code>, <code>verify</code>,
+  and, with the drills, <code>drill</code>. The CLI is a client of the control plane's HTTP
+  API and holds no logic of its own, so the command line cannot do what the
+  service would refuse. It has two transports: a remote server (<code>--server</code> or
+  <code>KEYFORGE_SERVER</code>, with a bearer token from <code>--token-file</code> or
+  <code>KEYFORGE_TOKEN</code>), and an in-process handler for a host binary that embeds the
+  commands, where no network is involved and the host's own authorizer applies.
+  <code>keyring inspect</code> (a keyring file's generation and root key identifier,
+  without the root key) and <code>rootkey generate</code> (32 random bytes as base64) need
+  no server. <code>--json</code> prints the response unchanged. Commands exit non-zero on an
+  error and on a guard's denial, and a denial's body is still shown. Cobra is
+  imported only by the <code>cli</code> and <code>cmd/keyforge</code> packages.</li>
+</ul>
+<h3 id="endpoints">Endpoints<a class="headerlink" href="#endpoints" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Method and path</th>
+<th>Action</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /v1/status</code></td>
+<td><code>status.read</code></td>
+<td>The full report; always 200</td>
+</tr>
+<tr>
+<td><code>GET /v1/health</code></td>
+<td><code>status.read</code></td>
+<td>200 when healthy, 503 with the problems otherwise</td>
+</tr>
+<tr>
+<td><code>GET /v1/purposes</code>, <code>GET /v1/purposes/{purpose}</code></td>
+<td><code>keys.list</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>POST /v1/purposes/{purpose}/rotate</code></td>
+<td><code>keys.rotate</code></td>
+<td>Rotation only; the drain is the scheduler's or <code>rewrap</code></td>
+</tr>
+<tr>
+<td><code>POST /v1/purposes/{purpose}/rollback</code></td>
+<td><code>keys.rollback</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>POST /v1/purposes/{purpose}/rewrap</code></td>
+<td><code>keys.rewrap</code></td>
+<td>Synchronous, bounded by the request</td>
+</tr>
+<tr>
+<td><code>POST /v1/keks/{kek}/versions/{v}/retire</code></td>
+<td><code>keys.retire.request</code></td>
+<td>Starts the delay</td>
+</tr>
+<tr>
+<td><code>POST .../retire/complete</code>, <code>.../retire/cancel</code></td>
+<td><code>keys.retire.complete</code>, <code>keys.retire.cancel</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>POST .../destroy</code></td>
+<td><code>keys.destroy</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>POST .../compromise</code></td>
+<td><code>keys.compromise</code></td>
+<td>Emergency; body <code>{"keepMaterial": bool}</code></td>
+</tr>
+<tr>
+<td><code>POST /v1/datakeys/{id}/compromise</code>, <code>/destroy</code></td>
+<td><code>datakeys.compromise</code>, <code>datakeys.destroy</code></td>
+<td></td>
+</tr>
+<tr>
+<td><code>POST /v1/backups/{provider}/ack</code></td>
+<td><code>backup.ack</code></td>
+<td>Body <code>{"generation", "note"}</code></td>
+</tr>
+<tr>
+<td><code>POST</code>, <code>GET /v1/purposes/{purpose}/subjects/{subject}/shred</code></td>
+<td><code>shred.request</code>, <code>shred.read</code></td>
+<td>202 until complete</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Authorization comes first.</strong> The action is authorized before the resource is
+  looked up, and a key path is authorized against the purpose the key belongs to
+  once resolved, so a caller who may not act cannot learn from the response
+  whether a key exists. An unknown resource is a 404 only for a caller who is
+  permitted the action. No body is read before authorization.</li>
+<li><strong>Status codes.</strong> <code>401</code> for no identity, <code>403</code> for any other refusal, with no
+  reason echoed; <code>404</code> unknown resource; <code>409</code> for a state or policy conflict
+  (a denial by the guard, a delay not yet run, a version still referenced, a
+  stale backup); <code>202</code> for an approval still outstanding or an erasure not yet
+  complete; <code>503</code> when a key or provider is unavailable.</li>
+<li><strong>Errors carry a stable code and a message that names no detail.</strong> An
+  unexpected failure is <code>500 internal</code> with a generic message; the detail is the
+  host's to log.</li>
+<li><strong>An audit gap is a warning, not a failure.</strong> When the change was made and its
+  event could not be recorded, the response is <code>200</code> with a <code>warnings</code> entry, and
+  the caller is not told the operation failed.</li>
+<li>Request bodies are JSON, at most 1 MiB, with unknown fields refused.</li>
+<li>Administrative reads are themselves audited (<code>admin.read</code>).</li>
+</ul>
+<h2 id="algorithms-and-profiles">Algorithms and profiles<a class="headerlink" href="#algorithms-and-profiles" title="Permanent link">&para;</a></h2>
+<h3 id="rules">Rules<a class="headerlink" href="#rules" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Everything goes through keyforge.</strong> Every protection of stored data and
+  keys that keyforge's callers perform uses an algorithm from keyforge's
+  registry. Callers do not select or call primitives for that purpose.</li>
+<li><strong>Algorithms are named exactly:</strong> mode and size, always ("AES-256-GCM", never
+  "AES-256"). The registry's names are the names used in the envelope, in
+  configuration, in logs and in status.</li>
+<li><strong>The floor is an authenticated mode.</strong> AES-256-GCM is the minimum. No ECB,
+  CBC, CTR or unauthenticated construction is registered.</li>
+<li><strong>Standard library first.</strong> Primitives come from the Go standard library
+  and, where it has none, <code>golang.org/x/crypto</code>. No third-party primitive or
+  post-quantum implementation is used.</li>
+<li><strong>The sets are code.</strong> Registry entries and profile membership are
+  compiled in and reviewed. Configuration can narrow a profile and cannot add
+  an algorithm. Adding one is a release with an envelope identifier and
+  known-answer vectors.</li>
+</ul>
+<h3 id="registry">Registry<a class="headerlink" href="#registry" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Algorithm</th>
+<th>Use</th>
+<th><code>fips</code></th>
+<th><code>standard</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>AES-256-GCM (<code>cipher.NewGCMWithRandomNonce</code>)</td>
+<td>Data encryption; DEK wrapping in the local provider</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>2</td>
+<td>ChaCha20-Poly1305</td>
+<td>Data encryption</td>
+<td>no</td>
+<td>reserved</td>
+</tr>
+<tr>
+<td>16</td>
+<td>HPKE, DHKEM P-256 / HKDF-SHA-256 / AES-256-GCM</td>
+<td>Asymmetric KEK</td>
+<td>reserved</td>
+<td>reserved</td>
+</tr>
+<tr>
+<td>17</td>
+<td>HPKE, MLKEM768P256 / HKDF-SHA-256 / AES-256-GCM</td>
+<td>Hybrid post-quantum asymmetric KEK</td>
+<td>reserved</td>
+<td>reserved</td>
+</tr>
+<tr>
+<td>18</td>
+<td>HPKE, MLKEM768X25519 / HKDF-SHA-256 / AES-256-GCM</td>
+<td>Hybrid post-quantum asymmetric KEK</td>
+<td>no</td>
+<td>reserved</td>
+</tr>
+<tr>
+<td>32</td>
+<td>Ed25519</td>
+<td>Signing</td>
+<td>reserved</td>
+<td>reserved</td>
+</tr>
+<tr>
+<td>33</td>
+<td>ECDSA P-256 / SHA-256</td>
+<td>Signing</td>
+<td>reserved</td>
+<td>reserved</td>
+</tr>
+<tr>
+<td>34</td>
+<td>ML-DSA-65</td>
+<td>Signing</td>
+<td>reserved, needs a module version that includes it</td>
+<td>reserved</td>
+</tr>
+</tbody>
+</table>
+<p>"Reserved" entries are identifiers set aside so the format does not change
+when they are added; none is implemented or in scope for this initiative. The
+registry contains ID 1 only, and the only algorithm in either profile is
+AES-256-GCM, which both profiles approve.</p>
+<h3 id="profiles">Profiles<a class="headerlink" href="#profiles" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>Profile</code> is <code>Standard</code> or <code>FIPS</code>. A client's profile defaults to <code>FIPS</code> when
+  the process runs in FIPS mode (<code>crypto/fips140.Enabled()</code>) and to
+  <code>Standard</code> otherwise. Configuration may deny algorithms in either profile
+  or select <code>FIPS</code> outside FIPS mode, which uses only the approved set
+  without module validation. A denial can only narrow the profile.</li>
+<li>Each purpose declares an optional <strong>pinned profile</strong> and an
+  <strong>allowed-algorithm list</strong>. A pinned profile must be no wider than the
+  active one, and the list must be a subset of the profile in force, without
+  repeats. Startup validates every configured purpose and fails fast, reporting
+  every violation, including a purpose left with no algorithm to write with.</li>
+<li><strong>Writes</strong> choose the first algorithm of the purpose's list that the profile
+  in force permits, or the profile's first algorithm when the list is empty;
+  with none, the write fails closed (<code>ErrNoPermitted</code>). <strong>Reads</strong> follow the
+  profile in force and not the write list, so narrowing a list does not strand
+  data already written: an envelope that names an algorithm outside the
+  profile fails with <code>ErrNotPermitted</code>, which reports the algorithm and the
+  profile, and does not fall back. Migration is a <code>Reencrypt</code> in a process
+  whose profile permits the old algorithm.</li>
+<li><code>status</code> reports the profile, the module version (<code>crypto/fips140.Version</code>)
+  and whether the process is in FIPS mode.</li>
+</ul>
+<h3 id="starting-point-fips-140-3-and-post-quantum">Starting point, FIPS 140-3 and post-quantum<a class="headerlink" href="#starting-point-fips-140-3-and-post-quantum" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>The selector is the deliverable; the non-approved algorithms are not.</strong>
+  keyforge starts in the <code>standard</code> profile and does not require FIPS mode.
+  What this initiative builds is the generic algorithm selector, so that
+  adding the first non-approved algorithm, or requiring FIPS-only operation,
+  is a registry entry and a configuration change and not a redesign. No
+  non-approved algorithm is implemented or in scope.</li>
+<li><strong>FIPS-clean by construction.</strong> Because the one algorithm is approved
+  (AES-256-GCM through <code>NewGCMWithRandomNonce</code>), the code stays valid under
+  <code>GODEBUG=fips140=only</code>. A CI job runs the tests under
+  <code>GODEBUG=fips140=only</code> from the first phase so the property is checked
+  rather than assumed. It is non-gating until FIPS operation is first
+  required, and gating from then on.</li>
+<li>Symmetric wrapping needs no post-quantum change. Asymmetric KEKs, when
+  added, are hybrid KEMs through <code>crypto/hpke</code>, <code>MLKEM768X25519</code> in
+  the <code>standard</code> profile and <code>MLKEM768P256</code> in <code>fips</code>. Signing keys move to
+  ML-DSA (<code>crypto/mldsa</code>) or a hybrid when the formats and relying parties
+  that carry them support it.</li>
+</ul>
+<h2 id="inventory-and-the-crypto-specification">Inventory and the crypto specification<a class="headerlink" href="#inventory-and-the-crypto-specification" title="Permanent link">&para;</a></h2>
+<p>keyforge is the system of record for the cryptography the platform selects
+and enforces, and the one place to register the cryptography it relies on but
+does not control, so that the system's crypto specification has a single
+source.</p>
+<h3 id="three-kinds-of-fact">Three kinds of fact<a class="headerlink" href="#three-kinds-of-fact" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Examples</th>
+<th>Authority</th>
+<th>Verification state in the export</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Enforced</strong></td>
+<td>Registry algorithms and profiles, purposes, key classes and rotation policy, a dated summary of key state, providers, FIPS mode</td>
+<td>keyforge</td>
+<td><code>verified</code>, with configuration and runtime evidence from keyforge</td>
+</tr>
+<tr>
+<td><strong>Declared</strong></td>
+<td>Edge TLS at a CDN, service-to-service TLS, database TLS: the expectation (minimum version, suites, key exchange groups, certificate key strength)</td>
+<td>The system that configures it; keyforge holds the expectation</td>
+<td><code>attested</code>, or <code>review-required</code> once its review date passes (derived when read, not stored)</td>
+</tr>
+<tr>
+<td><strong>Observed</strong></td>
+<td>A scan's handshake results, a dependency analysis</td>
+<td>The scanner</td>
+<td><code>discovered</code>, promoted to <code>verified</code> when it matches the expectation</td>
+</tr>
+</tbody>
+</table>
+<h3 id="external-boundaries">External boundaries<a class="headerlink" href="#external-boundaries" title="Permanent link">&para;</a></h3>
+<p>An external boundary record holds an identifier, a kind (<code>tls-edge</code>,
+<code>tls-internal</code>, <code>tls-database</code>, <code>storage-at-rest</code>, and so on), the
+<strong>expectation</strong>, an owner, a pointer to where the real configuration lives
+(an IaC path, a cloud console resource, a vendor document), and a review
+date. keyforge does not enforce it.</p>
+<ul>
+<li><strong>Policy is the floor; the expectation is at or above it.</strong> The floor is
+  the platform's cryptographic policy (a minimum TLS version, a minimum key
+  size, an allow-set of suites). A boundary with no expectation is held to
+  the floor directly. An expectation may be stricter without justification.</li>
+<li><strong>An expectation below the floor is a waiver.</strong> It carries a reason and an
+  owner, and it needs a review date. It is reported as a conditional pass
+  until that date and as a failure after it.</li>
+<li><strong>Three results are kept distinct:</strong> an observation below the floor is a
+  violation; an observation below the expectation but above the floor is
+  drift; an expectation below the floor is an exception.</li>
+<li><strong>The review date belongs to the claim that covers the record.</strong> The export
+  states each boundary's expectation as a claim with <code>reviewBy</code>, <code>reviewedAt</code>
+  and <code>reviewedBy</code>. A declaration past its review date is read as
+  <code>review-required</code>; the stored status is not rewritten, so stale assertions
+  cannot be read as current fact and the export does not change meaning with
+  the clock.</li>
+</ul>
+<h3 id="export">Export<a class="headerlink" href="#export" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>keyforge spec export</code> (and the library function behind it) produces a
+  <code>systemspec-crypto</code> document: implementations (keyforge, the Go
+  cryptographic module with its version and FIPS mode, each provider),
+  algorithms from the registry, uses per purpose with their configuration
+  (rotation intervals, profile), claims with verification states, and
+  evidence pointing to keyforge configuration and the external boundary
+  records.</li>
+<li>The export is derived and reproducible. It is never edited by hand, and
+  it contains key identifiers at most, never key material. Key state is a
+  dated summary claim ("all versions within policy as of T; current version
+  N") backed by <code>verified</code> evidence; the export has no row per key version,
+  which would change with every rotation and with the weekly canary.</li>
+<li>Where the specification does not yet model a detail, the export uses the
+  objects it has and leaves the rest undocumented rather than inventing it.
+  Key classes, certificates and protocol detail arrive in the
+  specification's later phases, and the review, expectation, operating-mode
+  and algorithm-profile fields in the phase after them. The export gains each
+  as it ships, and the first export is limited to the v0.1 objects.</li>
+</ul>
+<h3 id="verification">Verification<a class="headerlink" href="#verification" title="Permanent link">&para;</a></h3>
+<p>Verification is outside keyforge, and the verifier itself is not part of this
+initiative: test applications and scanners will be built later, against the
+export format defined here. A test application or scanner will take the
+exported specification and the registered expectations, observe the deployed
+system (TLS handshakes, certificate chains, key exchange groups including
+hybrid post-quantum ones), and attach its results as evidence. A mismatch
+between an expectation and an observation is a finding (drift when the
+observation is still above the policy floor, a violation when it is below).
+Results flow back as evidence on claims and do not edit the inventory.</p>
+<h3 id="what-keyforge-does-not-do-here">What keyforge does not do here<a class="headerlink" href="#what-keyforge-does-not-do-here" title="Permanent link">&para;</a></h3>
+<ul>
+<li>It does not scan networks or services.</li>
+<li>It does not replace the configuration of an external system; the
+  expectation points at it.</li>
+<li>It does not assert that every service uses keyforge. Direct use of a
+  primitive for data or key protection elsewhere is found by source and
+  dependency analysis.</li>
+</ul>
+<h2 id="threat-model">Threat model<a class="headerlink" href="#threat-model" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Asset</th>
+<th>Threat</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>KEK material</td>
+<td>Read from disk or backup</td>
+<td>Root key held apart from the keyring; managed providers keep material in the service; file mode and lock</td>
+</tr>
+<tr>
+<td>DEK material</td>
+<td>Process memory read</td>
+<td>Bounded cache and TTL; best-effort zeroing; not defended against a host-level attacker</td>
+</tr>
+<tr>
+<td>Ciphertext</td>
+<td>Moved or replayed between purposes or records</td>
+<td>AAD binds purpose, key identity and caller context</td>
+</tr>
+<tr>
+<td>Ciphertext</td>
+<td>Tampering</td>
+<td>AEAD authentication</td>
+</tr>
+<tr>
+<td>Key availability</td>
+<td>Provider or registry outage</td>
+<td>Cache; fail closed beyond it; status and health reporting</td>
+</tr>
+<tr>
+<td>Data under retention</td>
+<td>Premature destruction</td>
+<td>Guard, delay and audit on every retire and destroy</td>
+</tr>
+<tr>
+<td>Rotation</td>
+<td>Restoring a stale backup loses data</td>
+<td>Keyring generation and backup acknowledgement</td>
+</tr>
+<tr>
+<td>Control plane</td>
+<td>Unauthorized rotation or destruction</td>
+<td>Host-supplied authorizer on every action; audit</td>
+</tr>
+</tbody>
+</table>
+<h3 id="known-limitations">Known limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The local provider is as safe as the host and its root-key source. It is
+  not an HSM and is documented as unsuitable where managed keys are required.</li>
+<li>Go cannot lock or reliably zero memory; cached keys can appear in memory
+  dumps and swap.</li>
+<li>An attacker who controls the host process can use keys it can use; keyforge
+  limits blast radius by purpose and subject, not by defeating that attacker.</li>
+<li>Scheduling depends on the host clock.</li>
+<li>Inline-mode retirement relies on the host's statement that nothing
+  references a version.</li>
+<li>A subject shred is complete only when every KEK version that wrapped the
+  subject's DEKs is destroyed; until then a restored registry backup can
+  recover the data.</li>
+<li>A shred is complete for the live system only. Shreds and tombstones live in
+  the registry, so restoring an older registry resurrects the subject's keys,
+  and a keyring backup taken before the versions were destroyed still holds
+  their material. Operators expire such backups on the erasure's schedule and
+  keep a record of requested erasures outside the registry.</li>
+<li>A client holding a cached key for a shredded subject goes on writing under it
+  until the entry expires or <code>Purge</code> is called, and what it writes cannot be
+  read elsewhere. <code>Purge</code> covers reads and writes, and in-flight operations do
+  not repopulate the caches afterwards.</li>
+<li>A keyring copied over the file under a running provider is refused at the
+  next write and at the next open, but the provider keeps its in-memory copy
+  until restarted; restores are done with the process stopped.</li>
+<li>Inline wraps are not counted per KEK version; the nonce bound for one
+  key-encryption key version is the operator's to respect by rotating on a
+  schedule that fits the inline volume.</li>
+<li>Unauthenticated inline envelopes cost a registry call and a provider unwrap
+  and can evict cache entries; they cannot disclose a key.</li>
+<li>A guard's denial at destruction leaves a version retired, not in service; the
+  veto that returns a version to service is the one at retirement.</li>
+<li>A retained-backup requirement gates the previous keyring generation, not the
+  new version: a disk lost straight after a rotation loses what was wrapped
+  under the new version.</li>
+<li>Rotating the root key re-encrypts the keyring and rotates no
+  key-encryption key.</li>
+<li>A provider process keeps the material of a version another process has
+  destroyed until it reloads the keyring.</li>
+</ul>
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Provider conformance suite</strong>, run against every provider.</li>
+<li><strong>Store conformance suite</strong>, run against the in-memory and SQL stores.</li>
+<li><strong>Known-answer vectors</strong> for the envelope format, published in
+  <code>testdata</code>.</li>
+<li><strong>Fuzzing</strong> of the envelope parser.</li>
+<li><strong>Property tests:</strong> encrypt, rotate any number of times, decrypt.</li>
+<li><strong>Crash tests:</strong> killing the process during a keyring write and during a
+  re-wrap batch leaves a consistent, resumable state. For the keyring this is
+  tested two ways: a write is stopped at each stage (temporary file created,
+  written, flushed, renamed, directory flushed) and the file left behind is
+  opened, and a helper process rotating in a loop is killed at random moments
+  and the keyring checked for a torn or mixed state each time, with the dead
+  process's lock required not to block the next writer. These show that no
+  crash point leaves a keyring that fails to open or mixes two states. They
+  cannot show that the operating system and storage honor <code>fsync</code> ordering
+  through a power loss; that rests on the platform.</li>
+<li><strong>Race detector</strong> on the cache, scheduler and store.</li>
+<li><strong>Injected time and randomness.</strong> The <code>Client</code>, policy, scheduler and drill
+  take a clock, and DEK and key generation take an entropy reader, so tests
+  are deterministic. GCM nonces come from <code>NewGCMWithRandomNonce</code> and cannot
+  be injected; the known-answer vectors therefore fix the open path (decrypt
+  a published envelope), and the seal path is tested by round trip.</li>
+<li><strong>Scale benchmark</strong> for success criterion 2: a KEK rotation over a store
+  holding a million wrapped DEKs completes, and concurrent reads succeed
+  throughout. <code>BenchmarkRotateAndRewrap</code> (in memory, so it measures keyforge's
+  own work) and <code>BenchmarkRotateAndRewrapSQLite</code> (a transaction per key) take
+  <code>KEYFORGE_BENCH_KEYS</code>; one million keys is a few seconds in memory and a few
+  minutes on SQLite with full synchronous writes. Batching several keys to a
+  transaction is the known way to speed the SQL case up. Concurrent reads
+  during a rotation and re-wrap are a test, run with the race detector.</li>
+<li><strong>Lifecycle tests on the whole stack</strong> (<code>embedded</code>): a seeded random
+  sequence of writes, rotations, re-wraps, the passage of time and restarts
+  after which every envelope written still decrypts; and a re-wrap interrupted
+  after each possible number of keys, then resumed by a restarted system.</li>
+<li><strong>FIPS-only run</strong> of the test suite under <code>GODEBUG=fips140=only</code> in CI.</li>
+</ul>
+<h2 id="integration">Integration<a class="headerlink" href="#integration" title="Permanent link">&para;</a></h2>
+<p>keyforge is generic. A host application adopts it by supplying a store, a
+provider, a guard that consults its retention and approval policy, an audit
+sink, and an authorizer.
+<a href="https://github.com/plexusone/systemforge">systemforge</a> is the first host;
+its adoption decisions are in its architecture decision records.</p>
+<h3 id="single-host-setup">Single-host setup<a class="headerlink" href="#single-host-setup" title="Permanent link">&para;</a></h3>
+<p><code>embedded.Open</code> wires one host from a directory and a root key source, and
+returns the pieces (client, rotator, reporter, registry, keyring, jobs) so a
+host that outgrows it keeps the same objects and swaps the store or the
+provider. It is a convenience over public packages, not a second code path.</p>
+<ul>
+<li><strong>Layout.</strong> <code>keyring.kf</code>, <code>registry.db</code> and <code>runs/</code> in one directory,
+  created <code>0700</code>. The root key is never in it: the keyring provider refuses a
+  root key file beside the keyring.</li>
+<li><strong>Start is idempotent.</strong> On a first start it creates the keyring, then a KEK
+  for each configured purpose with its first version active and a sentinel
+  recorded (<code>Rotator.EnsureKEK</code>). On later starts it changes nothing. A start
+  interrupted part-way resumes: a KEK without an active version is completed,
+  not replaced.</li>
+<li><strong>A missing keyring is not a first start.</strong> If the registry holds keys and
+  the keyring file is gone, <code>Open</code> fails with <code>ErrKeyringMissing</code> rather than
+  creating an empty keyring, which would leave every operation failing beside
+  a registry that names keys it cannot unwrap. A wrong root key is refused and
+  changes nothing.</li>
+<li><strong>No control plane by default.</strong> The HTTP handler exists only when an
+  authorizer is supplied.</li>
+<li><strong>Backup is two files and a secret.</strong> The keyring and the registry are backed
+  up together, the keyring backup is acknowledged so rotation can rely on it,
+  and the root key is kept elsewhere, because it cannot be recovered from
+  either. <code>BackupRegistry</code> writes a consistent copy of the registry while the
+  system runs, which copying the database file does not.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/plexusone/keyforge" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../../..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "search.highlight", "content.code.copy"], "search": "../../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
