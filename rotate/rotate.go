@@ -73,6 +73,9 @@ type Options struct {
 	// destroyed. With none configured nothing is retired or destroyed: the
 	// absence of a veto is not consent.
 	Guard guard.Guard
+	// Epochs creates a new data key epoch on demand, which replacing an
+	// exposed data key needs. A [keyforge.Client] satisfies it.
+	Epochs EpochAdvancer
 	// Entropy supplies sentinel keys and event identifiers. The default is
 	// crypto/rand.
 	Entropy io.Reader
@@ -88,6 +91,7 @@ type Rotator struct {
 	clock     keyforge.Clock
 	audit     audit.Sink
 	guard     guard.Guard
+	epochs    EpochAdvancer
 	entropy   io.Reader
 }
 
@@ -115,7 +119,7 @@ func New(opts Options) (*Rotator, error) {
 	}
 	r := &Rotator{
 		store: opts.Store, providers: providers, policy: opts.Policy, backups: opts.Backups,
-		clock: opts.Clock, audit: opts.Audit, guard: opts.Guard, entropy: opts.Entropy,
+		clock: opts.Clock, audit: opts.Audit, guard: opts.Guard, epochs: opts.Epochs, entropy: opts.Entropy,
 	}
 	if r.clock == nil {
 		r.clock = systemClock{}
@@ -207,12 +211,21 @@ type Rotation struct {
 // A failure to record an audit event is returned as [audit.ErrNotRecorded]
 // alongside a valid Rotation.
 func (r *Rotator) RotateKEK(ctx context.Context, purpose keyforge.Purpose) (Rotation, error) {
+	return r.rotateKEK(ctx, purpose, false)
+}
+
+// rotateKEK is RotateKEK, with the backup requirement optionally skipped. An
+// emergency rotation skips it: waiting for a backup while a key is exposed is
+// the wrong trade.
+func (r *Rotator) rotateKEK(ctx context.Context, purpose keyforge.Purpose, skipBackup bool) (Rotation, error) {
 	kek, err := r.store.KEKForPurpose(ctx, purpose)
 	if err != nil {
 		return Rotation{}, err
 	}
-	if err := r.checkBackup(ctx, kek); err != nil {
-		return Rotation{}, err
+	if !skipBackup {
+		if err := r.checkBackup(ctx, kek); err != nil {
+			return Rotation{}, err
+		}
 	}
 	prov, err := r.providerFor(kek)
 	if err != nil {
