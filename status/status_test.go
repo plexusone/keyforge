@@ -6,6 +6,7 @@ import (
 	"crypto/fips140"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -209,11 +210,24 @@ func TestVersionsShowRetirability(t *testing.T) {
 
 func TestAnUnhealthyProviderDoesNotHideTheRest(t *testing.T) {
 	w := newWorld(t, providermemory.NewKeyring(), policy.Set{})
-	bad := sick{Provider: w.prov, err: errors.New("credentials expired")}
-	rep := w.reporter(func(o *status.Options) { o.Providers = []provider.Provider{bad} }).Report(bg)
+	bad := sick{Provider: w.prov, err: errors.New("credentials expired for /srv/keys/ring.kf")}
+	var logs bytes.Buffer
+	rep := w.reporter(func(o *status.Options) {
+		o.Providers = []provider.Provider{bad}
+		o.Logger = slog.New(slog.NewTextHandler(&logs, nil))
+	}).Report(bg)
 
-	if rep.Healthy || rep.Providers[0].Healthy || rep.Providers[0].Error != "credentials expired" {
+	if rep.Healthy || rep.Providers[0].Healthy || rep.Providers[0].Error == "" {
 		t.Fatalf("provider status = %+v, healthy %v", rep.Providers[0], rep.Healthy)
+	}
+	// What the report says names the kind of failure, not the error's text,
+	// which can hold paths; the text goes to the log.
+	shown := rep.Providers[0].Error + " " + strings.Join(rep.Problems, " ")
+	if strings.Contains(shown, "credentials expired") || strings.Contains(shown, "/srv/keys") {
+		t.Fatalf("the report shows the error's text: %q", shown)
+	}
+	if !strings.Contains(logs.String(), "credentials expired") {
+		t.Fatalf("the detail was not logged: %q", logs.String())
 	}
 	// The purposes are still reported.
 	if len(rep.Purposes) != 1 || rep.Purposes[0].ActiveVersion != 1 {

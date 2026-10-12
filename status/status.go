@@ -12,6 +12,7 @@ import (
 	"crypto/fips140"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/plexusone/keyforge/jobs"
 	"github.com/plexusone/keyforge/policy"
 	"github.com/plexusone/keyforge/provider"
+	"github.com/plexusone/keyforge/provider/local"
 	"github.com/plexusone/keyforge/registry"
 	"github.com/plexusone/keyforge/rotate"
 )
@@ -59,6 +61,12 @@ type Options struct {
 	Scheduler *jobs.Scheduler
 	// Clock defaults to the system clock.
 	Clock keyforge.Clock
+	// Logger receives the full text of the errors a report summarizes. A
+	// report is shown to whoever may read status, and an error from a provider
+	// or a store can name file paths, permissions and SQL, so the report says
+	// what kind of failure it was and the detail goes here. The default is
+	// [slog.Default].
+	Logger *slog.Logger
 }
 
 // Reporter builds status reports.
@@ -82,6 +90,9 @@ func New(o Options) (*Reporter, error) {
 	}
 	if o.Clock == nil {
 		o.Clock = systemClock{}
+	}
+	if o.Logger == nil {
+		o.Logger = slog.Default()
 	}
 	return &Reporter{o: o}, nil
 }
@@ -218,15 +229,17 @@ func (r *Reporter) Report(ctx context.Context) Report {
 	for _, p := range r.o.Providers {
 		ps := ProviderStatus{Name: p.Name(), Healthy: true}
 		if err := p.Health(ctx); err != nil {
-			ps.Healthy, ps.Error = false, err.Error()
-			problem("provider %q is not healthy: %v", p.Name(), err)
+			reason := r.describe(ctx, "provider health", err)
+			ps.Healthy, ps.Error = false, reason
+			problem("provider %q is not healthy: %s", p.Name(), reason)
 		}
 		if f, ok := r.o.Backups[p.Name()]; ok {
 			info, err := f(ctx)
 			switch {
 			case err != nil:
-				ps.BackupError = err.Error()
-				problem("the backup state of provider %q cannot be read: %v", p.Name(), err)
+				reason := r.describe(ctx, "backup state", err)
+				ps.BackupError = reason
+				problem("the backup state of provider %q cannot be read: %s", p.Name(), reason)
 			default:
 				ps.Backup = &info
 				if !info.UpToDate {
@@ -323,14 +336,14 @@ func (r *Reporter) purpose(ctx context.Context, purpose keyforge.Purpose, now ti
 
 	kek, err := r.o.Store.KEKForPurpose(ctx, purpose)
 	if err != nil {
-		out.Error = "no key-encryption key is registered: " + err.Error()
+		out.Error = "no key-encryption key is registered: " + r.describe(ctx, "key-encryption key lookup", err)
 		return out
 	}
 	out.Provider, out.KEKID = kek.Provider, kek.ID.String()
 
 	versions, err := r.o.Store.ListVersions(ctx, kek.ID)
 	if err != nil {
-		out.Error = "versions cannot be read: " + err.Error()
+		out.Error = "versions cannot be read: " + r.describe(ctx, "version listing", err)
 		return out
 	}
 	for _, v := range versions {
@@ -361,4 +374,34 @@ func (r *Reporter) purpose(ctx context.Context, purpose keyforge.Purpose, now ti
 		}
 	}
 	return out
+}
+
+// describe logs err in full and returns a description that names the kind of
+// failure and nothing from the error's text: no path, no permission string and
+// no query.
+func (r *Reporter) describe(ctx context.Context, what string, err error) string {
+	r.o.Logger.ErrorContext(ctx, "status: "+what+" failed", "error", err)
+	switch {
+	case errors.Is(err, local.ErrWrongRootKey):
+		return "the root key does not match the keyring"
+	case errors.Is(err, local.ErrRootKeyUnavailable), errors.Is(err, local.ErrInsecureRootKeyFile):
+		return "the root key is unavailable"
+	case errors.Is(err, local.ErrKeyringNotFound):
+		return "the keyring file is missing"
+	case errors.Is(err, local.ErrCorruptKeyring):
+		return "the keyring file is corrupt"
+	case errors.Is(err, local.ErrInsecurePermissions):
+		return "the keyring file has insecure permissions"
+	case errors.Is(err, local.ErrKeyringRolledBack):
+		return "the keyring is older than one this host has seen"
+	case errors.Is(err, local.ErrClosed):
+		return "the provider is closed"
+	case errors.Is(err, keyforge.ErrKEKNotFound):
+		return "not found"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timed out"
+	case errors.Is(err, context.Canceled):
+		return "cancelled"
+	}
+	return "unavailable; see the server log"
 }
