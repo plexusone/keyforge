@@ -148,6 +148,38 @@ caller can violate it by mistake. Policy lives above it.
 Not enforced by the store, because they are policy: how many versions to
 retain, when to rotate, and whether a guard allows a destruction.
 
+### The SQL store
+
+`sqlstore` implements the registry over Ent for SQLite and PostgreSQL, and the
+conformance suite runs against both. The memory store remains the reference
+for behaviour.
+
+- **Uniqueness is in the database.** Partial unique indexes allow one active
+  KEK per purpose, one active version per KEK, and one current data key per
+  purpose and subject, so a race that the transaction logic missed fails
+  instead of corrupting the registry. Each is also a lookup the operations
+  rely on.
+- **Transactions.** Every operation that changes state is one transaction. On
+  PostgreSQL it runs at the serializable level; on SQLite it begins
+  immediately, so writers queue, and the pool is held to one connection. A
+  serialization failure, a deadlock, a busy database or a unique violation from
+  a lost race is retried a bounded number of times, and the retry re-reads, so
+  a loser converges on the winner's record.
+- **Stored forms.** Identifiers are their 16 raw bytes, which both engines
+  order as `bytes.Compare` does, so a cursor over data keys means the same
+  thing everywhere. States are the small integers of the Go constants, and
+  changing one is a stored-format change. An absent time is `NULL`, never the
+  zero time. Times are read back in UTC.
+- **A destroyed key keeps its record and loses its wrapped value**, in the same
+  statement that changes its state, so there is no moment with a destroyed key
+  that still holds a wrapped one. The wrapping history (`wrapped_under`) is
+  kept, because it decides when a shred is complete.
+- **The schema** is created by an automatic migration when the store is
+  opened. Versioned migrations are a follow-up, and until then a schema change
+  is additive only.
+- **Scale.** The encryption counter takes a transaction per block reservation,
+  not per encryption, which is what keeps the data path off the database.
+
 ### Data key states
 
 | State | Write | Read | Notes |

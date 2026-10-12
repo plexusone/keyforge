@@ -1,0 +1,54 @@
+name: Go PostgreSQL store
+permissions:
+  contents: read
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/go-postgres.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
+      - '.github/workflows/go-postgres.yaml'
+  workflow_dispatch:
+
+jobs:
+  postgres:
+    name: store conformance on PostgreSQL
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: keyforge
+          POSTGRES_PASSWORD: keyforge
+          POSTGRES_DB: keyforge
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U keyforge"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Install Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Run the store tests against PostgreSQL
+        env:
+          KEYFORGE_TEST_POSTGRES_DSN: postgres://keyforge:keyforge@localhost:5432/keyforge?sslmode=disable
+        run: go test -race -count=1 ./sqlstore/...
