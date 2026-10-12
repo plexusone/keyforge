@@ -204,6 +204,19 @@ type Provider interface {
   **root key** obtained from a `RootKeySource` (an environment variable, a
   file, or a secret manager such as omnivault). The root key never touches
   disk beside the keyring.
+- The keyring header carries a non-secret **root-key ID** assigned when the
+  root key is created. Opening a keyring with a different root key fails with
+  `ErrWrongRootKey` before decryption is attempted, so a wrong key is not
+  reported as a corrupted file.
+- **Root-key rotation** re-encrypts the keyring under a new root key in one
+  atomic write and records the new root-key ID. The keyring is small, so this
+  is a rewrite, not a job.
+- **Escrow is the operator's.** keyforge does not split or escrow the root
+  key; that would mean implementing a cryptographic scheme. The operations
+  guide documents keeping the root key in a secret manager with a second,
+  offline copy. The DR drill obtains the root key through a separately
+  configured recovery `RootKeySource`, so the escrow path is tested rather
+  than assumed.
 - Writes are atomic: write to a temporary file, fsync, rename, fsync the
   directory, and take an advisory lock so concurrent processes do not
   interleave.
@@ -341,8 +354,9 @@ report.
    predates a rotation or a key version is a failure, not a warning.
 4. **Start keyforge in recovery mode** against the restored state, with the
    same profile and provider configuration as production, and the root key
-   obtained the way an operator would during a real recovery (from the secret
-   manager, not from the production process).
+   obtained the way an operator would during a real recovery: through the
+   recovery `RootKeySource` (the secret manager or the escrowed copy), not
+   from the production process.
 5. **Decrypt sentinels.** Keyforge writes a sentinel envelope per purpose
    and key version, whose plaintext is a fixed, non-secret marker, and keeps
    them with the registry. The drill decrypts every sentinel for every

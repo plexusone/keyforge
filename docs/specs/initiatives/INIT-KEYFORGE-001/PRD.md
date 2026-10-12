@@ -141,4 +141,3 @@ fits without changing stored data.
 - Whether the registry stores wrapped data keys itself or only metadata, with
   wrapped keys stored beside each record by the application.
 - Which managed KMS provider to implement first.
-- Escrow and recovery of the local provider's root key.
