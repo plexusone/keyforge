@@ -62,8 +62,8 @@ Implements the [PRD](PRD.md).
 
 The module is one module. What keeps it reviewable is its import graph: the
 packages that touch key material (`algorithm`, `envelope`, `provider`,
-`provider/local`, and the root package) import only the standard library, and a
-test enforces it. The store holds wrapped keys and never a plaintext one, so
+`provider/local`, the root package, and `metrics`, which holds only counters and
+bounded labels) import only the standard library, and a test enforces it. The store holds wrapped keys and never a plaintext one, so
 reading or editing the database yields no key and cannot move a ciphertext to
 another record. Ent and the database drivers are imported by `sqlstore` only,
 OmniWorkflow by `jobs` only, and Cobra by `cli` and `cmd/keyforge` only.

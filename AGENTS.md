@@ -47,7 +47,8 @@ If the code and the TRD disagree, resolve it in the TRD in the same change.
 - **No network call per encrypt or decrypt.** The data path is in process.
 - **The crypto path stays standard-library-only.** The packages that touch key
   material (`algorithm`, `envelope`, `provider`, `provider/local`, and the root
-  `keyforge` package) import only the standard library, and a test enforces it.
+  `keyforge` package, plus `metrics`, which holds only counters) import only the
+  standard library, and a test enforces it.
   That boundary, not the number of modules, is what keeps the library
   reviewable: the store holds wrapped keys and never a plaintext one.
 - **One module, with Ent as the supported persistence layer.** `sqlstore` is the
