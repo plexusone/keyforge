@@ -136,8 +136,10 @@ fits without changing stored data.
 
 ## Open questions
 
-- The default cap on encryptions per data key, and the default delay before a
-  retired key version is destroyed.
-- Whether the registry stores wrapped data keys itself or only metadata, with
-  wrapped keys stored beside each record by the application.
-- Which managed KMS provider to implement first.
+- Which managed KMS provider to implement first. The first host's deployment
+  target decides it; it does not block v0.1.0.
+
+Decided in the [TRD](TRD.md): the encryption cap per data key (2³⁰), the
+retirement delay (30 days), where wrapped data keys live (in the registry,
+in reference mode; beside the data in inline mode), and root-key escrow (the
+operator's, exercised by the DR drill).
