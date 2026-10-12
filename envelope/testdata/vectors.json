@@ -1,0 +1,113 @@
+{
+  "description": "Known-answer vectors for envelope format 1. Produced once by the seal path and frozen; the key is a fixed non-secret test key. Regenerating changes every envelope and is a format change.",
+  "key": "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf",
+  "valid": [
+    {
+      "name": "reference-basic",
+      "mode": "reference",
+      "algorithm": "AES-256-GCM",
+      "purpose": "session-secrets",
+      "context": "7265636f72643a3432",
+      "plaintext": "68656c6c6f206b6579666f726765",
+      "envelope": "4b46010101000f73657373696f6e2d73656372657473101112131415161718191a1b1c1d1e1f597257ebd3bae6308f8822b537a4605e892bba7b786301c7d21c902e0b693bfe563efa39d4c5f3003f1b",
+      "text": "kf1.S0YBAQEAD3Nlc3Npb24tc2VjcmV0cxAREhMUFRYXGBkaGxwdHh9Zclfr07rmMI-IIrU3pGBeiSu6e3hjAcfSHJAuC2k7_lY--jnUxfMAPxs"
+    },
+    {
+      "name": "reference-empty-context",
+      "mode": "reference",
+      "algorithm": "AES-256-GCM",
+      "purpose": "session-secrets",
+      "context": "",
+      "plaintext": "6e6f20636f6e74657874",
+      "envelope": "4b46010101000f73657373696f6e2d73656372657473303132333435363738393a3b3c3d3e3f2726005e1cb78c7c2c862197c02589ef74753f5edff7fb33d70b7d526d750204022451946552",
+      "text": "kf1.S0YBAQEAD3Nlc3Npb24tc2VjcmV0czAxMjM0NTY3ODk6Ozw9Pj8nJgBeHLeMfCyGIZfAJYnvdHU_Xt_3-zPXC31SbXUCBAIkUZRlUg"
+    },
+    {
+      "name": "reference-empty-plaintext",
+      "mode": "reference",
+      "algorithm": "AES-256-GCM",
+      "purpose": "audit-log",
+      "context": "7365713a31",
+      "plaintext": "",
+      "envelope": "4b46010101000961756469742d6c6f67505152535455565758595a5b5c5d5e5fbff81f822e45f3ddfb13d79c243dfff07a3ef760f029a3eb9c5ddd1f",
+      "text": "kf1.S0YBAQEACWF1ZGl0LWxvZ1BRUlNUVVZXWFlaW1xdXl-_-B-CLkXz3fsT15wkPf_wej73YPApo-ucXd0f"
+    },
+    {
+      "name": "reference-longest-purpose",
+      "mode": "reference",
+      "algorithm": "AES-256-GCM",
+      "purpose": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "context": "",
+      "plaintext": "6c6f6e6720707572706f7365",
+      "envelope": "4b4601010100ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161707172737475767778797a7b7c7d7e7fdfe1292b258eeb19a5da20ed559558812cfb59690ab8734bfcebd34f0b674da4bfef57ed03c1f061",
+      "text": "kf1.S0YBAQEA_2FhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYXBxcnN0dXZ3eHl6e3x9fn_f4SkrJY7rGaXaIO1VlViBLPtZaQq4c0v869NPC2dNpL_vV-0DwfBh"
+    },
+    {
+      "name": "inline-basic",
+      "mode": "inline",
+      "algorithm": "AES-256-GCM",
+      "purpose": "hold-snapshots",
+      "context": "6f626a6563743a39",
+      "plaintext": "7374616e64616c6f6e65206f626a656374",
+      "envelope": "4b46010201000e686f6c642d736e617073686f7473202122232425262728292a2b2c2d2e2f00000007003cabababababababababababababababababababababababababababababababababababababababababababababababababababababababababababab9148cf604c3e4028734ebec39fed436e8b68aed18997f64daa835562ebd5b640053366e5f0d29609b07553786b",
+      "text": "kf1.S0YBAgEADmhvbGQtc25hcHNob3RzICEiIyQlJicoKSorLC0uLwAAAAcAPKurq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq5FIz2BMPkAoc06-w5_tQ26LaK7RiZf2TaqDVWLr1bZABTNm5fDSlgmwdVN4aw"
+    },
+    {
+      "name": "inline-large-wrapped",
+      "mode": "inline",
+      "algorithm": "AES-256-GCM",
+      "purpose": "exports",
+      "context": "",
+      "plaintext": "6269672077726170706564206b6579",
+      "envelope": "4b4601020100076578706f727473404142434445464748494a4b4c4d4e4fffffffff03e8cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd626b9209b6e1f97de4f46707b1f4fc93b84e9658f90222864e4b5687838a0da8db7f09ee0726a0924e550a",
+      "text": "kf1.S0YBAgEAB2V4cG9ydHNAQUJDREVGR0hJSktMTU5P_____wPozc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3NzWJrkgm24fl95PRnB7H0_JO4TpZY-QIihk5LVoeDig2o238J7gcmoJJOVQo"
+    }
+  ],
+  "invalid": [
+    {
+      "name": "bad-magic",
+      "envelope": "5846010101000f73657373696f6e2d73656372657473101112131415161718191a1b1c1d1e1f597257ebd3bae6308f8822b537a4605e892bba7b786301c7d21c902e0b693bfe563efa39d4c5f3003f1b",
+      "error": "ErrBadMagic"
+    },
+    {
+      "name": "unsupported-format-2",
+      "envelope": "4b46020101000f73657373696f6e2d73656372657473101112131415161718191a1b1c1d1e1f597257ebd3bae6308f8822b537a4605e892bba7b786301c7d21c902e0b693bfe563efa39d4c5f3003f1b",
+      "error": "ErrUnsupportedFormat"
+    },
+    {
+      "name": "unknown-mode-3",
+      "envelope": "4b46010301000f73657373696f6e2d73656372657473101112131415161718191a1b1c1d1e1f597257ebd3bae6308f8822b537a4605e892bba7b786301c7d21c902e0b693bfe563efa39d4c5f3003f1b",
+      "error": "ErrUnknownMode"
+    },
+    {
+      "name": "unknown-algorithm-2",
+      "envelope": "4b46010102000f73657373696f6e2d73656372657473101112131415161718191a1b1c1d1e1f597257ebd3bae6308f8822b537a4605e892bba7b786301c7d21c902e0b693bfe563efa39d4c5f3003f1b",
+      "error": "ErrUnknownAlgorithm"
+    },
+    {
+      "name": "flags-set",
+      "envelope": "4b46010101010f73657373696f6e2d73656372657473101112131415161718191a1b1c1d1e1f597257ebd3bae6308f8822b537a4605e892bba7b786301c7d21c902e0b693bfe563efa39d4c5f3003f1b",
+      "error": "ErrUnsupportedFlags"
+    },
+    {
+      "name": "empty-purpose",
+      "envelope": "4b46010101000073657373696f6e2d73656372657473101112131415161718191a1b1c1d1e1f597257ebd3bae6308f8822b537a4605e892bba7b786301c7d21c902e0b693bfe563efa39d4c5f3003f1b",
+      "error": "ErrInvalidPurpose"
+    },
+    {
+      "name": "truncated-in-header",
+      "envelope": "4b46010101000f736573",
+      "error": "ErrTruncated"
+    },
+    {
+      "name": "truncated-before-tag",
+      "envelope": "4b46010101000f73657373696f6e2d73656372657473101112131415161718191a1b1c1d1e1f597257ebd3bae6308f8822b537a4605e892bba7b786301c7d21c90",
+      "error": "ErrTruncated"
+    },
+    {
+      "name": "flipped-ciphertext-bit",
+      "envelope": "4b46010101000f73657373696f6e2d73656372657473101112131415161718191a1b1c1d1e1f597257ebd3bae6308f8822b537a4605e892bba7b786301c7d21c902e0b693bfe563efa39d4c5f3003f1a",
+      "error": "ErrAuthentication"
+    }
+  ]
+}
