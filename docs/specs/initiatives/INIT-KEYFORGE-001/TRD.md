@@ -41,7 +41,8 @@ Implements the [PRD](PRD.md).
 | Package | Contents |
 |---|---|
 | `keyforge` | Core types: `Purpose`, `KeyRef`, `Envelope`, `Client` (`Encrypt`, `Decrypt`, `Reencrypt`), errors |
-| `envelope` | The binary and text formats, versioning, parser |
+| `algorithm` | The algorithm registry: identifiers, exact names, and construction of the AEAD for each (profiles and selection are added with the selector) |
+| `envelope` | The binary and text formats, header validation, versioning, parser, and sealing and opening of the payload |
 | `provider` | `Provider` interface and the conformance suite |
 | `provider/local` | The keyring-file provider |
 | `registry` | `Store` interface, in-memory implementation, key state machine |
@@ -142,8 +143,18 @@ ciphertext || tag
   bit can be silently ignored. The flags byte is part of the AAD, so it
   cannot be changed or stripped without failing authentication. A
   known-answer vector covers the rejection.
+- **Purpose names:** 1 to 255 bytes of lowercase ASCII letters, digits, `.`,
+  `_` and `-`, beginning with a letter or digit. The restriction keeps a
+  purpose unambiguous in logs, configuration and the header; anything else is
+  `ErrInvalidPurpose`.
+- **Field consistency:** reference mode requires a non-zero data key ID and
+  no inline fields; inline mode requires a non-zero key-encryption key ID, a
+  wrapped key of 1 to 65535 bytes, and no data key ID. An inconsistent header
+  is `ErrInvalidHeader` on write and on parse.
 - **Text form:** `kf1.` followed by unpadded base64url, for text columns and
-  JSON.
+  JSON. It has one spelling: padding, line breaks, the standard alphabet and
+  non-canonical trailing bits are rejected with `ErrBadTextForm`. A
+  well-formed prefix for another version is `ErrUnsupportedFormat`.
 - **AAD:** the header bytes up to the nonce, followed by the caller context.
   Changing the purpose, key, mode or context makes decryption fail.
 - **Algorithm 1 (registry ID 1):** AES-256-GCM through `cipher.NewGCMWithRandomNonce`, the
@@ -153,8 +164,19 @@ ciphertext || tag
   cap (see [Encryption counter](#encryption-counter)), and a DEK reaching its
   cap is rotated to a new epoch before the NIST random-nonce limit of 2³²
   invocations. The default cap is 2³⁰.
-- **Forward compatibility:** unknown `format` or `algorithm` values fail with
-  a typed error rather than a guess. The parser is fuzzed.
+- **Forward compatibility:** unknown `format`, `mode`, `algorithm` or `flags`
+  values fail with a typed error rather than a guess. The parser is fuzzed.
+- **Typed errors:** `ErrBadMagic`, `ErrTruncated`, `ErrUnsupportedFormat`,
+  `ErrUnknownMode`, `ErrUnknownAlgorithm`, `ErrUnsupportedFlags`,
+  `ErrInvalidPurpose`, `ErrInvalidHeader`, `ErrBadTextForm`, and
+  `ErrAuthentication`. The ones that report a value carry it in a
+  `ValueError`. `ErrAuthentication` carries no detail: a wrong key, a changed
+  header or context and a modified ciphertext are not distinguished.
+- **Sealing and opening:** the payload is sealed with an AEAD that generates
+  its own random nonce, which is split off the output and stored in the
+  header's nonce field, and reassembled on open. An AEAD that takes an
+  explicit nonce is refused (`ErrNotRandomNonce`), so a nonce can never be
+  chosen by a caller.
 
 ### Encryption counter
 
