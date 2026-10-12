@@ -89,6 +89,11 @@ type Envelope struct {
 	Ciphertext []byte // ciphertext || tag
 }
 
+// ValidPurpose reports whether p is a legal purpose name: 1 to 255 bytes of
+// lowercase ASCII letters, digits, '.', '_' and '-', beginning with a letter
+// or digit.
+func ValidPurpose(p string) bool { return validPurpose(p) }
+
 // validPurpose reports whether p is a legal purpose name: 1 to 255 bytes of
 // lowercase ASCII letters, digits, '.', '_' and '-', beginning with a letter
 // or digit. The restriction keeps purposes unambiguous in logs, configuration
