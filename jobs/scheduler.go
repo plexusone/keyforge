@@ -12,6 +12,7 @@ import (
 
 	"github.com/plexusone/keyforge"
 	"github.com/plexusone/keyforge/audit"
+	"github.com/plexusone/keyforge/metrics"
 	"github.com/plexusone/keyforge/registry"
 	"github.com/plexusone/keyforge/rotate"
 )
@@ -47,6 +48,9 @@ type SchedulerOptions struct {
 	Clock keyforge.Clock
 	// Audit receives job failures. The default discards them.
 	Audit audit.Sink
+	// Metrics receives job counts and how overdue each rotation is. The default
+	// discards them.
+	Metrics metrics.Metrics
 	// Interval is the time between ticks of [Scheduler.Run].
 	Interval time.Duration
 	// Recheck, Backoff and MaxBackoff are described on the defaults above.
@@ -69,6 +73,7 @@ type Scheduler struct {
 	purposes []keyforge.Purpose
 	clock    keyforge.Clock
 	audit    audit.Sink
+	metrics  metrics.Metrics
 	interval time.Duration
 	recheck  time.Duration
 	backoff  time.Duration
@@ -105,7 +110,7 @@ func NewScheduler(o SchedulerOptions) (*Scheduler, error) {
 	}
 	s := &Scheduler{
 		provider: o.Provider, rotator: o.Rotator, store: o.Store, purposes: slices.Clone(o.Purposes),
-		clock: o.Clock, audit: o.Audit, interval: o.Interval, recheck: o.Recheck, backoff: o.Backoff, maxBack: o.MaxBackoff,
+		clock: o.Clock, audit: o.Audit, metrics: o.Metrics, interval: o.Interval, recheck: o.Recheck, backoff: o.Backoff, maxBack: o.MaxBackoff,
 		attempt: map[string]int{}, notAfter: map[string]time.Time{}, failures: map[string]int{}, seen: map[string]bool{}, started: map[string]time.Time{},
 	}
 	if s.clock == nil {
@@ -113,6 +118,9 @@ func NewScheduler(o SchedulerOptions) (*Scheduler, error) {
 	}
 	if s.audit == nil {
 		s.audit = audit.Discard
+	}
+	if s.metrics == nil {
+		s.metrics = metrics.Discard
 	}
 	for _, d := range []struct {
 		v   *time.Duration
@@ -190,7 +198,26 @@ func (s *Scheduler) Tick(ctx context.Context) (TickResult, error) {
 			return res, err
 		}
 	}
+	s.report(res)
 	return res, nil
+}
+
+// report publishes a tick's findings as metrics. Every configured purpose gets
+// an overdue gauge, zero when nothing is late, so a recovered rotation clears the
+// alert and not only the alert's absence.
+func (s *Scheduler) report(res TickResult) {
+	late := map[keyforge.Purpose]time.Duration{}
+	for _, o := range res.Overdue {
+		late[o.Purpose] = o.Late
+	}
+	for _, p := range s.purposes {
+		s.metrics.Gauge(metrics.RotationOverdue, late[p].Seconds(), metrics.L("purpose", string(p)))
+	}
+	for _, st := range res.Started {
+		s.metrics.Count(metrics.JobsStarted, 1, metrics.L("kind", string(st.Spec.Kind)))
+	}
+	s.metrics.Gauge(metrics.JobsWaiting, float64(res.Waiting))
+	s.metrics.Gauge(metrics.JobsInFlight, float64(res.InFlight))
 }
 
 // evaluate lists the work that is due from the registry's current state.
@@ -337,6 +364,7 @@ func (s *Scheduler) settle(ctx context.Context, w want, run *omniworkflow.Run, n
 			wait = s.maxBack
 		}
 		s.notAfter[w.base] = now.Add(wait)
+		s.metrics.Count(metrics.JobsFailed, 1, metrics.L("kind", string(w.spec.Kind)))
 		_ = s.audit.Emit(ctx, audit.Event{ //nolint:errcheck // the failure is also in the tick result; the sink is best-effort here
 			ID: run.ID, Time: now, Action: audit.JobFailed, Purpose: w.spec.Purpose, KEKID: w.spec.KEKID, Version: w.spec.Version,
 			Outcome: audit.Failure, Reason: fmt.Sprintf("%s job ended %s", w.spec.Kind, run.Status),

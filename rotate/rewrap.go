@@ -8,6 +8,7 @@ import (
 	"github.com/plexusone/keyforge"
 	"github.com/plexusone/keyforge/audit"
 	"github.com/plexusone/keyforge/envelope"
+	"github.com/plexusone/keyforge/metrics"
 	"github.com/plexusone/keyforge/registry"
 )
 
@@ -173,6 +174,9 @@ func (r *Rotator) Rewrap(ctx context.Context, kekID envelope.ID, from uint32, op
 	}
 
 	res.Done = res.FailedCount == 0
+	r.metrics.Count(metrics.RewrappedKeys, int64(res.Rewrapped), metrics.L("outcome", "moved"))
+	r.metrics.Count(metrics.RewrappedKeys, int64(res.Skipped), metrics.L("outcome", "skipped"))
+	r.metrics.Count(metrics.RewrappedKeys, int64(res.FailedCount), metrics.L("outcome", "failed"))
 	var audErr error
 	if res.Done {
 		audErr = r.emit(ctx, audit.Event{

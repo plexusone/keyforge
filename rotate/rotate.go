@@ -21,6 +21,7 @@ import (
 	"github.com/plexusone/keyforge/audit"
 	"github.com/plexusone/keyforge/envelope"
 	"github.com/plexusone/keyforge/guard"
+	"github.com/plexusone/keyforge/metrics"
 	"github.com/plexusone/keyforge/policy"
 	"github.com/plexusone/keyforge/provider"
 	"github.com/plexusone/keyforge/registry"
@@ -73,6 +74,8 @@ type Options struct {
 	// destroyed. With none configured nothing is retired or destroyed: the
 	// absence of a veto is not consent.
 	Guard guard.Guard
+	// Metrics receives rotation and re-wrap counts. The default discards them.
+	Metrics metrics.Metrics
 	// Epochs creates a new data key epoch on demand, which replacing an
 	// exposed data key needs. A [keyforge.Client] satisfies it.
 	Epochs EpochAdvancer
@@ -92,6 +95,7 @@ type Rotator struct {
 	audit     audit.Sink
 	guard     guard.Guard
 	epochs    EpochAdvancer
+	metrics   metrics.Metrics
 	entropy   io.Reader
 }
 
@@ -119,7 +123,7 @@ func New(opts Options) (*Rotator, error) {
 	}
 	r := &Rotator{
 		store: opts.Store, providers: providers, policy: opts.Policy, backups: opts.Backups,
-		clock: opts.Clock, audit: opts.Audit, guard: opts.Guard, epochs: opts.Epochs, entropy: opts.Entropy,
+		clock: opts.Clock, audit: opts.Audit, guard: opts.Guard, epochs: opts.Epochs, metrics: opts.Metrics, entropy: opts.Entropy,
 	}
 	if r.clock == nil {
 		r.clock = systemClock{}
@@ -129,6 +133,9 @@ func New(opts Options) (*Rotator, error) {
 	}
 	if r.entropy == nil {
 		r.entropy = rand.Reader
+	}
+	if r.metrics == nil {
+		r.metrics = metrics.Discard
 	}
 	return r, nil
 }
@@ -211,7 +218,13 @@ type Rotation struct {
 // A failure to record an audit event is returned as [audit.ErrNotRecorded]
 // alongside a valid Rotation.
 func (r *Rotator) RotateKEK(ctx context.Context, purpose keyforge.Purpose) (Rotation, error) {
-	return r.rotateKEK(ctx, purpose, false)
+	res, err := r.rotateKEK(ctx, purpose, false)
+	outcome := metrics.OutcomeOK
+	if err != nil && !errors.Is(err, audit.ErrNotRecorded) {
+		outcome = metrics.OutcomeError
+	}
+	r.metrics.Count(metrics.Rotations, 1, metrics.L("purpose", string(purpose)), metrics.L("outcome", outcome))
+	return res, err
 }
 
 // rotateKEK is RotateKEK, with the backup requirement optionally skipped. An
