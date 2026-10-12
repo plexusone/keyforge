@@ -121,7 +121,7 @@ running locally.
    and reported before it can lose data.
 5. An external reviewer can reconstruct, from the format specification alone,
    how any ciphertext was produced.
-6. A disaster-recovery drill runs with no person involved, restores the
+6. (v0.2.0) A disaster-recovery drill runs with no person involved, restores the
    registry and keyring from backup in an isolated environment, decrypts a
    sentinel for every retained key version, reports its recovery time and
    recovery point against configured limits, and produces a report whose
@@ -131,7 +131,8 @@ running locally.
 ## Out of scope for v0.1.0
 
 Cloud KMS providers, asymmetric KEKs, signing-key management, a remote
-service mode and certificate lifecycle. The interfaces are designed so each
+service mode and certificate lifecycle. The rotation and disaster-recovery
+drills (FR10b to FR10d) follow in v0.2.0. The interfaces are designed so each
 fits without changing stored data.
 
 ## Open questions

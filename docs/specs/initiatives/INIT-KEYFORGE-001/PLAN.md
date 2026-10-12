@@ -27,10 +27,11 @@ holds the work items and their status.
 |---|---|---|
 | 1 | Envelope and core library | A tested format and `Client` over an in-memory registry and a test provider |
 | 2 | Local provider and registry | A real keyring provider with safe writes, and the store interface with an in-memory implementation and conformance suite |
-| 3 | Rotation, policy and retirement | Automatic KEK and DEK rotation, resumable jobs, the guard, and the delay |
+| 3 | Rotation, policy and retirement | Automatic KEK and DEK rotation with rollback, resumable jobs, the guard, the delay, and per-subject shredding |
 | 4 | Control plane | Scheduler with leader lease, audit sink, status, the service and the CLI |
-| 5 | Hardening and v0.1.0 | SQL store, crash and fuzz tests, documentation, security review, release |
-| 6 | Inventory and crypto specification | External boundary inventory and export of the system's crypto specification for verification (after v0.1.0) |
+| 5 | Hardening and v0.1.0 | SQL store, crash and property tests, documentation, security review, release |
+| 6 | Rotation and disaster-recovery drills | Weekly canary rotation, the unattended DR drill and its analyst-written report; v0.2.0 |
+| 7 | Inventory and crypto specification | External boundary inventory and export of the system's crypto specification for verification |
 
 ## Dependencies and sequencing
 
@@ -39,6 +40,9 @@ holds the work items and their status.
 - Phase 3 depends on the registry state machine from phase 2.
 - Phase 4's scheduler depends on phase 3's jobs; the SQL store in phase 5
   depends on the store conformance suite from phase 2.
+- Phase 6's drills depend on the scheduler and status from phase 4. They
+  follow v0.1.0 rather than gate it: a KEK rotates yearly by default, so no
+  deployment reaches its first real rotation before the canary ships.
 - systemforge integration (guard, audit sink, catalog granularity, and a
   `Sampler` implementation that reads sample envelopes from the encrypted
   columns of registered entities) follows v0.1.0 and is tracked in
@@ -59,4 +63,5 @@ holds the work items and their status.
 
 v0.1.0 when phase 5 completes and CI is green on all platforms. The release
 notes state the maturity (pre-1.0, not externally audited), the threat model
-and the known limitations.
+and the known limitations. v0.2.0 adds the rotation and DR drills when phase
+6 completes.
