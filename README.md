@@ -1,5 +1,29 @@
 # keyforge
 
+[![Go CI][go-ci-svg]][go-ci-url]
+[![Go Lint][go-lint-svg]][go-lint-url]
+[![Go SAST][go-sast-svg]][go-sast-url]
+[![PostgreSQL][pg-svg]][pg-url]
+![coverage](https://img.shields.io/badge/coverage-73.0%25-yellowgreen)
+[![Docs][docs-godoc-svg]][docs-godoc-url]
+[![Docs][docs-mkdoc-svg]][docs-mkdoc-url]
+[![License][license-svg]][license-url]
+
+ [go-ci-svg]: https://github.com/plexusone/keyforge/actions/workflows/go-ci.yaml/badge.svg?branch=main
+ [go-ci-url]: https://github.com/plexusone/keyforge/actions/workflows/go-ci.yaml
+ [go-lint-svg]: https://github.com/plexusone/keyforge/actions/workflows/go-lint.yaml/badge.svg?branch=main
+ [go-lint-url]: https://github.com/plexusone/keyforge/actions/workflows/go-lint.yaml
+ [go-sast-svg]: https://github.com/plexusone/keyforge/actions/workflows/go-sast-codeql.yaml/badge.svg?branch=main
+ [go-sast-url]: https://github.com/plexusone/keyforge/actions/workflows/go-sast-codeql.yaml
+ [pg-svg]: https://github.com/plexusone/keyforge/actions/workflows/go-postgres.yaml/badge.svg?branch=main
+ [pg-url]: https://github.com/plexusone/keyforge/actions/workflows/go-postgres.yaml
+ [docs-godoc-svg]: https://pkg.go.dev/badge/github.com/plexusone/keyforge
+ [docs-godoc-url]: https://pkg.go.dev/github.com/plexusone/keyforge
+ [docs-mkdoc-svg]: https://img.shields.io/badge/Go-dev%20guide-blue.svg
+ [docs-mkdoc-url]: https://plexusone.dev/keyforge
+ [license-svg]: https://img.shields.io/badge/license-MIT-blue.svg
+ [license-url]: https://github.com/plexusone/keyforge/blob/main/LICENSE
+
 Encryption and signing key lifecycle for Go applications: envelope
 encryption, automatic rotation without re-encrypting stored data, and
 controlled retirement and destruction.
@@ -80,6 +104,7 @@ test enforces it.
 - [Product requirements](docs/specs/initiatives/INIT-KEYFORGE-001/PRD.md)
 - [Technical requirements](docs/specs/initiatives/INIT-KEYFORGE-001/TRD.md)
 - [Plan](docs/specs/initiatives/INIT-KEYFORGE-001/PLAN.md) and [roadmap](docs/specs/initiatives/INIT-KEYFORGE-001/ROADMAP.md)
+- [Release notes](docs/releases/v0.1.0.md) and [changelog](CHANGELOG.md)
 - [Security policy](SECURITY.md)
 
 ## License
