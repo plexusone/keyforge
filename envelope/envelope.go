@@ -2,6 +2,7 @@ package envelope
 
 import (
 	"crypto/cipher"
+	"database/sql/driver"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -63,6 +64,24 @@ func (id ID) String() string { return hex.EncodeToString(id[:]) }
 
 // IsZero reports whether the identifier is all zero bytes.
 func (id ID) IsZero() bool { return id == ID{} }
+
+// Value implements [driver.Valuer]: an identifier is stored as its 16 raw bytes,
+// which both SQLite and PostgreSQL compare bytewise, so a database orders
+// identifiers exactly as bytes.Compare does.
+func (id ID) Value() (driver.Value, error) { return id[:], nil }
+
+// Scan implements [sql.Scanner].
+func (id *ID) Scan(src any) error {
+	b, ok := src.([]byte)
+	if !ok {
+		return fmt.Errorf("envelope: cannot scan %T into an ID", src)
+	}
+	if len(b) != len(id) {
+		return fmt.Errorf("envelope: an ID is %d bytes, got %d", len(id), len(b))
+	}
+	copy(id[:], b)
+	return nil
+}
 
 // Header is the authenticated, self-describing part of an envelope.
 //

@@ -450,3 +450,25 @@ func mustBinary(t *testing.T, h envelope.Header) []byte {
 	}
 	return b
 }
+
+func TestIDIsStoredAsRawBytes(t *testing.T) {
+	id := testID(0x30)
+	v, err := id.Value()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, ok := v.([]byte)
+	if !ok || !bytes.Equal(b, id[:]) {
+		t.Fatalf("Value = %T %x, want the 16 raw bytes", v, v)
+	}
+	var back envelope.ID
+	if err := back.Scan(b); err != nil || back != id {
+		t.Fatalf("Scan = %v, %v", back, err)
+	}
+	for name, in := range map[string]any{"string": "abc", "short": []byte{1, 2}, "nil": nil, "long": make([]byte, 17)} {
+		var x envelope.ID
+		if err := x.Scan(in); err == nil {
+			t.Errorf("Scan accepted %s", name)
+		}
+	}
+}
