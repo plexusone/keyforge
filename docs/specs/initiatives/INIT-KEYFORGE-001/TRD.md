@@ -190,6 +190,25 @@ type Provider interface {
 }
 ```
 
+```go
+// KeyRef identifies a KEK. ID is keyforge's identifier, the one written in
+// envelopes; ProviderRef is the provider's own opaque identifier (a keyring
+// entry, a KMS key ARN or resource name), stored in the registry.
+type KeyRef struct {
+    ID          [16]byte
+    Provider    string
+    ProviderRef string
+}
+
+// KeySpec describes a KEK to create.
+type KeySpec struct {
+    Purpose   Purpose
+    Algorithm AlgorithmID // from the registry; AES-256-GCM in this initiative
+}
+```
+
+- The envelope carries only `ID`, so it stays provider-neutral and a key can
+  move between providers by updating the registry, not the data.
 - A provider never returns KEK material. `Wrap` and `Unwrap` take the AAD
   (purpose and key identity) so the wrap is bound to its use; a KMS provider
   maps it to the service's encryption context.
@@ -197,6 +216,9 @@ type Provider interface {
   from `Rotate`; one that does not (the local keyring) generates it.
 - Every provider passes the same conformance suite, which also runs against
   the local provider in CI.
+- The test providers include one that versions natively, the way a managed
+  KMS does, so the interface is exercised by both rotation styles before any
+  cloud provider exists.
 
 ### Local provider
 
