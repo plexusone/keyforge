@@ -345,7 +345,7 @@ func TestTruncationNeverSucceeds(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for n := 0; n < len(full); n++ {
+			for n := range full {
 				p, err := envelope.Parse(full[:n])
 				if err != nil {
 					continue
