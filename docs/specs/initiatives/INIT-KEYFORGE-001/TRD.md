@@ -40,7 +40,7 @@ Implements the [PRD](PRD.md).
 
 | Package | Contents |
 |---|---|
-| `keyforge` | Core types: `Purpose`, `KeyRef`, `Envelope`, `Client` (`Encrypt`, `Decrypt`, `Reencrypt`), errors |
+| `keyforge` | Core types: `Purpose`, `KeyRef`, `Envelope`, `Store` (what the client needs from the registry), `Client` (`Encrypt`, `EncryptInline`, `Decrypt`, `Reencrypt`), errors |
 | `algorithm` | The algorithm registry: identifiers, exact names, and construction of the AEAD for each (profiles and selection are added with the selector) |
 | `envelope` | The binary and text formats, header validation, versioning, parser, and sealing and opening of the payload |
 | `provider` | `Provider` interface, `KeyRef` and `KeySpec` (the root package re-exports them) |
@@ -191,9 +191,15 @@ encryption, so encryptions are counted in blocks reserved from the registry:
 - A block that is not fully used (the process exits or crashes) counts as
   used. `reserved` can therefore overstate the encryptions performed, never
   understate them.
-- A reservation that would take `reserved` past the cap triggers a new epoch
-  instead, and the write proceeds under the new epoch's DEK. If no new epoch
+- A reservation is granted up to the cap and never past it, so the last block
+  of a key is partial. When nothing is left, or the key is no longer the
+  current epoch, the registry grants zero and the writer advances to a new
+  epoch; the write then proceeds under the new epoch's DEK. If no new epoch
   can be created, the write fails closed.
+- The cap should be far larger than the block size times the number of
+  concurrent writers. A write retries a bounded number of times when other
+  writers use up a key's capacity first, and fails closed with
+  `ErrKeyUnavailable` if it cannot get a key with capacity.
 - During a registry outage, writes continue until the current block is
   spent and then fail closed. Reads are unaffected.
 - At the default cap and block size a DEK needs at most 2¹⁴ reservations in
@@ -289,6 +295,59 @@ type KeySpec struct {
   version).
 - The provider is reported as `local` in status and in the startup log, so it
   is not mistaken for a managed one.
+
+## Client
+
+```go
+func (c *Client) Encrypt(ctx, purpose, plaintext, context) (*Envelope, error)
+func (c *Client) EncryptInline(ctx, purpose, plaintext, context) (*Envelope, error)
+func (c *Client) Decrypt(ctx, purpose, e *Envelope, context) (plaintext []byte, info Info, err error)
+func (c *Client) Reencrypt(ctx, purpose, e *Envelope, context) (*Envelope, error)
+```
+
+- **Purposes are configured.** A purpose the client was not given fails with
+  `ErrUnknownPurpose`. `New` validates every purpose against the algorithm
+  selector, so a configuration that widens the profile or leaves a purpose with
+  nothing to write with fails at startup.
+- **Decrypt names the purpose** it expects. An envelope for another purpose is
+  `ErrPurposeMismatch` before any key work, and the purpose is authenticated
+  in any case.
+- **Reference mode** (`Encrypt`) uses the purpose's current data key. **Inline
+  mode** (`EncryptInline`) generates a fresh data key per object and wraps it
+  under the purpose's active KEK version, so it contacts the provider once per
+  object to wrap, and once to unwrap an object the process has not seen. It is
+  for standalone objects, and not for a hot path against a managed key
+  service.
+- **Reads** are allowed under `active`, `decrypt-only` and `compromised` data
+  keys, so data can be re-encrypted away from a compromised one; a `destroyed`
+  key fails with `ErrKeyUnusable`. **Writes** use only the `active` key.
+- **`Info.Stale`** is true when the envelope's data key is not the current
+  epoch (reference mode) or its KEK version is older than the active one
+  (inline mode). `Reencrypt` decrypts and writes again under the current key in
+  the same mode; it always produces a new envelope, and callers use `Stale` to
+  skip current ones.
+- **Time and randomness are injected:** a clock and an entropy reader supply
+  cache expiry, data keys and identifiers. Nonces come from the AEAD's own
+  generator and are not drawn from the entropy reader.
+- **Fail closed:** when a key cannot be obtained (registry or provider down and
+  nothing cached, entropy failure), the operation returns `ErrKeyUnavailable`;
+  it never falls back to a weaker path.
+
+### Wrapping data keys
+
+A data key is wrapped by the provider with additional data that binds it to its
+record. The layout is part of the stored format, and changing it makes existing
+wrapped keys unreadable:
+
+```text
+reference: "keyforge/dek/v1\x00" | lp(purpose) | lp(subject) | dek_id (16) | kek_id (16)
+inline:    "keyforge/inline/v1\x00" | lp(purpose) | kek_id (16)
+```
+
+`lp` is a u32 big-endian length followed by the bytes. The subject is empty for
+a purpose-wide key. A wrapped key therefore cannot be moved to another purpose,
+subject or record, and the re-wrap job recomputes the same additional data when
+it moves a key to a new KEK version.
 
 ## Rotation
 
@@ -529,8 +588,16 @@ end to end and a single-host deployment can drill without writing any.
 ## Caching and availability
 
 - Unwrapped DEKs are cached in process with a TTL (default 5 minutes) and a
-  size bound, and are zeroed on eviction on a best-effort basis (Go gives no
-  guarantee).
+  size bound with least-recently-used eviction. The raw key is zeroed as soon
+  as the cipher has been constructed, and only the cipher is cached; Go gives
+  no guarantee about the cipher's expanded key schedule.
+- The client also caches the current data key record per purpose and subject,
+  the active KEK version per purpose, and KEK references, under the same TTL.
+  `Stale` is computed from the cached current record, so it is advisory: an
+  outage can hide it, and it never fails a read.
+- A key destroyed or retired in the registry can still be used from a cache
+  until its entry expires. `Purge` drops every cached key at once for a host
+  that needs immediacy.
 - Reads and writes for cached DEKs continue during a registry or provider
   outage. A key not in the cache fails closed.
 - A cache hit after a KEK rotation is still correct: the unwrapped DEK did
