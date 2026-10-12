@@ -46,6 +46,7 @@ func (c *clock) Advance(d time.Duration) {
 }
 
 type world struct {
+	pol   policy.Set
 	t     *testing.T
 	store *registrymemory.Store
 	prov  provider.Provider
@@ -76,6 +77,7 @@ func newWorld(t *testing.T, s setup) *world {
 	if err := w.store.Bootstrap(bg, purpose, kek, 1, w.clock.Now()); err != nil {
 		t.Fatal(err)
 	}
+	w.pol = s.policy
 	opts := rotate.Options{
 		Store: w.store, Providers: []provider.Provider{w.prov}, Policy: s.policy,
 		Clock: w.clock, Audit: w.audit,

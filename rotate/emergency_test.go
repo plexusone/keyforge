@@ -17,7 +17,7 @@ import (
 
 func (w *world) rotator(t *testing.T, mutate func(*rotate.Options)) *rotate.Rotator {
 	t.Helper()
-	o := rotate.Options{Store: w.store, Providers: []provider.Provider{w.prov}, Clock: w.clock, Audit: w.audit}
+	o := rotate.Options{Store: w.store, Providers: []provider.Provider{w.prov}, Clock: w.clock, Audit: w.audit, Policy: w.pol}
 	if mutate != nil {
 		mutate(&o)
 	}
