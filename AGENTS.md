@@ -50,12 +50,17 @@ If the code and the TRD disagree, resolve it in the TRD in the same change.
   `provider/local`, and the root `keyforge` package, plus `metrics`, which holds
   only counters) import the standard library and, for operating-system
   differences such as file handling and paths, `github.com/grokify/oscompat`,
-  which has no dependencies of its own. Nothing else, including anything
-  `oscompat` might later depend on, and a test enforces it. Do not add a module
-  to the allowed set to make a change convenient: each is a decision recorded
-  here, in the TRD and in `boundary_test.go` together. Prefer the standard
-  library, and use `oscompat` only where the difference between platforms is
-  what the code is about.
+  which has no dependencies of its own by policy (its own test enforces it).
+  Nothing else, including anything `oscompat` might later depend on, and a test
+  here enforces it too. Do not add a module to the allowed set to make a change
+  convenient: each is a decision recorded here, in the TRD and in
+  `boundary_test.go` together.
+- **Operating-system differences live in `oscompat`.** Do not add a
+  `_windows.go` or `_unix.go` file, a build tag or a `runtime.GOOS` check to
+  this module. If code differs by platform (file locking, directory sync,
+  permission checks), add it to `oscompat` with tests on every platform, using
+  only the standard library, and import it here. Existing platform-specific
+  files are to be moved there. Prefer the standard library otherwise.
   That boundary, not the number of modules, is what keeps the library
   reviewable: the store holds wrapped keys and never a plaintext one.
 - **One module, with Ent as the supported persistence layer.** `sqlstore` is the

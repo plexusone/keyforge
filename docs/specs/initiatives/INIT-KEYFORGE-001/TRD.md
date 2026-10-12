@@ -66,8 +66,9 @@ packages that touch key material (`algorithm`, `envelope`, `provider`,
 bounded labels) import only the standard library and one allowed module,
 [`github.com/grokify/oscompat`](https://github.com/grokify/oscompat), which
 smooths over operating-system differences (file handling, paths) and has no
-dependencies of its own; a test enforces it, and it also fails if `oscompat`
-ever gains a dependency. The allowed set is a decision, recorded here, in
+dependencies of its own by policy; a test here enforces it, and it also fails if
+`oscompat` ever gains a dependency. Code that differs by operating system is
+added to `oscompat` and imported, not written as platform files in this module. The allowed set is a decision, recorded here, in
 `AGENTS.md` and in `boundary_test.go` together; a module is not added to it for
 convenience. The store holds wrapped keys and never a plaintext one, so
 reading or editing the database yields no key and cannot move a ciphertext to
