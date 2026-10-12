@@ -556,8 +556,15 @@ No pass is required for correctness.
 
 ### Per-subject keys and crypto-shredding
 
-A purpose can be declared **per-subject**: each subject (a user, a tenant)
-gets its own DEK epochs, and `Encrypt` takes the subject with the purpose.
+A purpose can be declared **per-subject**: each subject (a user, a tenant) gets
+its own DEK epochs, written with `EncryptFor(purpose, subject, ...)`. The
+subject is not in the envelope: the envelope names its data key, and the
+registry knows whose key that is. A subject is 1 to 255 bytes of valid UTF-8
+with no control characters, and it is part of the additional data the key is
+wrapped with, so a wrapped key cannot be moved to another subject. A per-subject
+purpose rejects a write without a subject, and any other purpose rejects one
+with a subject.
+
 Shredding a subject destroys its DEKs, which makes its data unrecoverable
 wherever the ciphertext was copied.
 
@@ -566,20 +573,33 @@ backups still hold the subject's DEK wrapped under the KEK versions that were
 active while it existed, and while any of those versions survives, a restored
 backup can unwrap it. So:
 
-- **A shred is complete when every KEK version that ever wrapped the
-  subject's DEKs is destroyed.** keyforge records those versions when the
-  shred is requested and reports the shred as `pending` until the last one is
-  destroyed, then as `complete`, with an audit event for each.
-- With the defaults (KEK rotation yearly, two retained versions, the
-  retirement delay) completion takes years, and backup retention can extend
-  it, because a version is kept while backups that need it are retained.
-- A purpose that needs a shorter erasure guarantee sets a shorter KEK
-  interval. The time to complete is roughly the interval times the retained
-  versions plus the retirement delay, and `status` reports the expected date
-  per pending shred.
+- **Every data key keeps a history** of the KEK versions it has been wrapped
+  under, in order. A re-wrap moves a key to a newer version but an older backup
+  still holds it under the previous one, so the history is what decides which
+  versions matter.
+- **Requesting a shred** destroys every data key of the subject under the
+  purpose, in every state, removes their wrapped values, clears the current key,
+  and records the union of their histories. It is atomic and idempotent, and
+  leaves a **tombstone**: a new key for the subject is refused with
+  `ErrSubjectShredded`, because an erasure that quietly re-enrolled the subject
+  would not be one.
+- **A shred is complete when every KEK version in that record is destroyed.**
+  It is reported as `pending`, with the outstanding versions and an expected
+  date, until then. Completing is checked by the registry, not asserted.
+- **The expected date follows from policy:** a version leaves the retained
+  floor after that many further rotations, one KEK interval apart, and then
+  waits out the retirement delay. With the defaults (365 days, two retained
+  versions, 30 days) that is more than two years for a version that is active
+  today, plus backup retention. A purpose that needs a faster erasure guarantee
+  sets a shorter KEK interval.
+- A subject with no keys completes at once, and is still tombstoned.
+- **Caches.** A client that has the subject's key cached keeps using it until
+  the entry expires or `Purge` is called, so the live registry stops serving the
+  key at once and a process may serve it for up to the cache TTL. A host that
+  needs the erasure effective at once purges its clients.
 - Shredding is per-subject reference mode only. Inline envelopes carry their
-  own DEK, wrapped under the KEK, and are shredded only by destroying the KEK
-  versions or the objects.
+  own wrapped key and are shredded only by destroying the KEK versions or the
+  objects.
 
 ### Retirement and destruction
 
