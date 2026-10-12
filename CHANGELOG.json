@@ -1,0 +1,79 @@
+{
+  "irVersion": "1.0",
+  "project": "keyforge",
+  "repository": "https://github.com/plexusone/keyforge",
+  "versioning": "semver",
+  "commitConvention": "conventional",
+  "maintainers": [
+    "plexusone"
+  ],
+  "releases": [
+    {
+      "version": "v0.1.0",
+      "date": "2026-10-12",
+      "highlights": [
+        {
+          "description": "Envelope encryption for Go: data keys wrapped by provider-held key-encryption keys, so a key-encryption key can rotate without re-encrypting stored data"
+        },
+        {
+          "description": "Guarded retirement and destruction: a caller-supplied guard can veto, a delay applies, and every outcome is audited"
+        },
+        {
+          "description": "Per-subject keys make erasure a key destruction, with completion tracked until every key version that wrapped the subject's keys is gone"
+        },
+        {
+          "description": "A single-host setup from a directory and a root key (`embedded.Open`), with a SQLite registry; PostgreSQL is supported for shared deployments"
+        },
+        {
+          "description": "Not externally audited and not yet recommended for production use; the envelope format is frozen from this release"
+        }
+      ],
+      "added": [
+        {
+          "description": "Envelope format version 1 with reference and inline modes, a canonical text form (`kf1.`), AAD binding purpose, mode, key identity and caller context, and published known-answer vectors"
+        },
+        {
+          "description": "Client: `Encrypt`, `EncryptFor`, `EncryptInline`, `Decrypt`, `Reencrypt`, `AdvanceEpoch`, `Verify` and `Purge`, with a bounded key cache, a per-key encryption cap enforced across replicas and crashes, and data key epochs by volume and age"
+        },
+        {
+          "description": "Algorithm registry and profiles: AES-256-GCM through `cipher.NewGCMWithRandomNonce`, a `standard` and a `fips` profile that configuration can only narrow, and code that stays valid under `GODEBUG=fips140=only`"
+        },
+        {
+          "description": "Provider interface with a conformance suite, an in-memory provider, and a keyring-file provider sealed under a root key, with atomic writes, locking, a generation counter, rollback detection and backup acknowledgement"
+        },
+        {
+          "description": "Registry with a transition table for key versions and data keys, and an Ent-backed SQL store for SQLite and PostgreSQL (pgx) that passes the store conformance suite on both"
+        },
+        {
+          "description": "KEK rotation with sentinels, resumable re-wrapping, rollback, guarded retirement with a delay, destruction, and emergency procedures for an exposed key-encryption key or data key"
+        },
+        {
+          "description": "Per-subject keys and crypto-shredding with a tombstone and completion tracked against the key versions that ever wrapped the subject's keys"
+        },
+        {
+          "description": "Lifecycle scheduler on OmniWorkflow: deterministic run identifiers, backoff, and resumption after a restart"
+        },
+        {
+          "description": "HTTP control plane with an authorizer asked before every action, an audit trail, a status report with health and a metrics interface, and a Cobra command line over it (`status`, `rotate`, `rewrap`, `retire`, `destroy`, `compromise`, `shred`, `backup ack`, `verify`, `health`)"
+        },
+        {
+          "description": "`embedded` package: keyring, SQLite registry, jobs and control plane wired from a directory and a root key source, with idempotent first start and consistent registry backup"
+        },
+        {
+          "description": "Documentation: getting started, operations, envelope format, threat model, and the product and technical requirements"
+        },
+        {
+          "description": "Import-boundary test: the packages that touch key material import only the standard library"
+        }
+      ],
+      "security": [
+        {
+          "description": "Internal review of the data path and of the lifecycle and storage layers; findings fixed before release (cache state across purge, compromise and destruction; a keyring restored under a running process; shredding under an unknown purpose; error text in status reports; file permissions)"
+        },
+        {
+          "description": "Known limitations are listed in the threat model, including that a restore can undo an erasure and that inline wraps are not counted per key-encryption key version"
+        }
+      ]
+    }
+  ]
+}
