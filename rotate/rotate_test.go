@@ -1213,3 +1213,93 @@ func TestRotationAndRewrapAreMetered(t *testing.T) {
 		t.Errorf("failed = %d, want 0", got)
 	}
 }
+
+func newEnsureRotator(t *testing.T) (*rotate.Rotator, *registrymemory.Store, *audit.Recorder) {
+	t.Helper()
+	store := registrymemory.NewStore()
+	rec := &audit.Recorder{}
+	r, err := rotate.New(rotate.Options{
+		Store: store, Providers: []provider.Provider{providermemory.NewKeyring()},
+		Clock: &clock{t: time.Unix(1_700_000_000, 0)}, Audit: rec,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return r, store, rec
+}
+
+func TestEnsureKEKCreatesActivatesAndIsIdempotent(t *testing.T) {
+	r, store, rec := newEnsureRotator(t)
+	name := providermemory.NewKeyring().Name()
+
+	kek, err := r.EnsureKEK(bg, purpose, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	av, err := store.ActiveKEK(bg, purpose)
+	if err != nil || av.Ref.ID != kek.ID || av.Version != 1 {
+		t.Fatalf("ActiveKEK = %+v, %v", av, err)
+	}
+	if _, err := store.GetSentinel(bg, kek.ID, 1); err != nil {
+		t.Fatalf("the first version has no sentinel: %v", err)
+	}
+	events := len(rec.Events())
+
+	again, err := r.EnsureKEK(bg, purpose, name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.ID != kek.ID {
+		t.Fatalf("a second call created another KEK: %s then %s", kek.ID, again.ID)
+	}
+	if n := len(rec.Events()); n != events {
+		t.Fatalf("a second call recorded %d more events", n-events)
+	}
+	if keks, err := store.ListKEKs(bg); err != nil || len(keks) != 1 {
+		t.Fatalf("%d KEKs, %v", len(keks), err)
+	}
+}
+
+func TestEnsureKEKCompletesAKEKWithoutAnActiveVersion(t *testing.T) {
+	store := registrymemory.NewStore()
+	prov := providermemory.NewKeyring()
+	r, err := rotate.New(rotate.Options{
+		Store: store, Providers: []provider.Provider{prov},
+		Clock: &clock{t: time.Unix(1_700_000_000, 0)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A registered KEK with no version, as a crash after registration leaves.
+	ref, err := prov.CreateKey(bg, provider.KeySpec{Purpose: string(purpose), Algorithm: algorithm.AES256GCM})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.CreateKEK(bg, registry.KEK{
+		ID: ref.ID, Purpose: purpose, Provider: ref.Provider, ProviderRef: ref.ProviderRef,
+		State: registry.KeyActive, CreatedAt: time.Unix(1_700_000_000, 0),
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	kek, err := r.EnsureKEK(bg, purpose, prov.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if kek.ID != ref.ID {
+		t.Fatalf("a new KEK was created beside the registered one")
+	}
+	if av, err := store.ActiveKEK(bg, purpose); err != nil || av.Version != 1 {
+		t.Fatalf("ActiveKEK = %+v, %v", av, err)
+	}
+}
+
+func TestEnsureKEKRejectsAnUnknownProvider(t *testing.T) {
+	r, _, _ := newEnsureRotator(t)
+	if _, err := r.EnsureKEK(bg, purpose, providermemory.NewKeyring().Name()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := r.EnsureKEK(bg, purpose, "elsewhere"); err == nil {
+		t.Fatal("an unknown provider was accepted")
+	}
+}
