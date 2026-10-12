@@ -79,8 +79,12 @@ certificate lifecycle through the same registry.
 
 **Theme:** A SQL store, crash and property tests, documentation, review and the release.
 
-- [ ] `RMI-KEYFORGE-021` SQL store (SQLite and PostgreSQL) in its own module, passing the store conformance suite
+- [ ] `RMI-KEYFORGE-021` Ent-backed SQL store for SQLite and PostgreSQL (pgx), passing the store conformance suite on both
   - Depends on: `RMI-KEYFORGE-006`
+- [ ] `RMI-KEYFORGE-035` Embedded single-host helper: keyring, SQLite registry, jobs and service wired from a directory and a root key source
+  - Depends on: `RMI-KEYFORGE-021`, `RMI-KEYFORGE-008`, `RMI-KEYFORGE-016`, `RMI-KEYFORGE-019`
+- [ ] `RMI-KEYFORGE-036` Crypto-path import boundary: algorithm, envelope, provider, local provider and the client import only the standard library, enforced by a test
+  - Depends on: `RMI-KEYFORGE-021`
 - [ ] `RMI-KEYFORGE-022` Property tests (rotate N times, decrypt), crash tests for re-wrap batches, and a million-key rotation benchmark; race detector clean
   - Depends on: `RMI-KEYFORGE-015`, `RMI-KEYFORGE-016`
 - [ ] `RMI-KEYFORGE-023` Documentation: getting started, format specification, operations guide (rotation, backup, root-key escrow, emergency), threat model
@@ -88,7 +92,7 @@ certificate lifecycle through the same registry.
 - [ ] `RMI-KEYFORGE-024` Internal review of format and rotation; fix findings; record known limitations
   - Depends on: `RMI-KEYFORGE-022`, `RMI-KEYFORGE-023`
 - [ ] `RMI-KEYFORGE-025` v0.1.0 release: changelog, release notes, signed tag after CI on all platforms
-  - Depends on: `RMI-KEYFORGE-021`, `RMI-KEYFORGE-024`
+  - Depends on: `RMI-KEYFORGE-021`, `RMI-KEYFORGE-024`, `RMI-KEYFORGE-035`, `RMI-KEYFORGE-036`
 
 ## Phase 6 — Rotation and disaster-recovery drills
 

@@ -45,13 +45,19 @@ If the code and the TRD disagree, resolve it in the TRD in the same change.
 - **Fail closed.** With no usable key, an operation fails; it never falls back
   to a weaker path.
 - **No network call per encrypt or decrypt.** The data path is in process.
-- **Core stays dependency-light.** The core module depends on the standard
-  library, `golang.org/x/crypto`, and OmniWorkflow's provider-neutral packages
-  (`omniworkflow`, `omniworkflow/inmemory`, `omniworkflow/durable`), which
-  import only the standard library. The `jobs` package is the only place they
-  are imported. Temporal, Step Functions, ORM and cloud SDK code lives in
-  separate packages or modules, and a host chooses its provider. Cobra is
-  imported only by `cli` and `cmd/keyforge`.
+- **The crypto path stays standard-library-only.** The packages that touch key
+  material (`algorithm`, `envelope`, `provider`, `provider/local`, and the root
+  `keyforge` package) import only the standard library, and a test enforces it.
+  That boundary, not the number of modules, is what keeps the library
+  reviewable: the store holds wrapped keys and never a plaintext one.
+- **One module, with Ent as the supported persistence layer.** `sqlstore` is the
+  only package that imports Ent and the database drivers; `jobs` is the only
+  one that imports OmniWorkflow (its provider-neutral packages, which import only
+  the standard library); `cli` and `cmd/keyforge` are the only ones that import
+  Cobra. `registry.Store` stays the contract, and the conformance suite holds
+  every implementation to it, but Ent over SQLite and PostgreSQL (pgx) is what is
+  supported and tested. Temporal, Step Functions and cloud SDK code lives in the
+  host.
 - **Time and randomness are injected** (a clock, an entropy reader) so tests
   are deterministic.
 - **Public-ready.** This repository is public: write code, comments, docs and

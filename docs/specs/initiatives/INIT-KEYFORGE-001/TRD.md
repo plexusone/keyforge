@@ -49,7 +49,9 @@ Implements the [PRD](PRD.md).
 | `registry` | `Store` (the client's `keyforge.Store` plus key and version administration), record types, the key-version and data-key transition tables |
 | `registry/memory` | In-memory store, the reference the SQL store is compared against |
 | `registry/storetest` | The store conformance suite |
-| `store/ent` | SQLite and PostgreSQL store (separate module so the core has no ORM dependency) |
+| `sqlstore` | The Ent-backed `registry.Store` for SQLite and PostgreSQL, with versioned schema and retry of engine contention |
+| `sqlstore/ent` | The Ent schema and generated code |
+| `embedded` | The single-host setup: keyring, SQLite registry, jobs and service wired from a directory and a root key source |
 | `policy` | Rotation, epoch and retirement policy per purpose |
 | `rotate` | KEK rotation, re-wrapping, rollback, retirement, destruction and the emergency procedures (the scheduler arrives with the control plane) |
 | `guard` | The `Guard` interface, its decisions and combinators |
@@ -58,8 +60,13 @@ Implements the [PRD](PRD.md).
 | `cli` | The Cobra commands, over the control plane's HTTP API |
 | `cmd/keyforge` | The standalone binary |
 
-The core module depends only on the standard library and
-`golang.org/x/crypto`.
+The module is one module. What keeps it reviewable is its import graph: the
+packages that touch key material (`algorithm`, `envelope`, `provider`,
+`provider/local`, and the root package) import only the standard library, and a
+test enforces it. The store holds wrapped keys and never a plaintext one, so
+reading or editing the database yields no key and cannot move a ciphertext to
+another record. Ent and the database drivers are imported by `sqlstore` only,
+OmniWorkflow by `jobs` only, and Cobra by `cli` and `cmd/keyforge` only.
 
 ## Data model
 
