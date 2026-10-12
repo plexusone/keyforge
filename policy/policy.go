@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/plexusone/keyforge"
+	"github.com/plexusone/keyforge/algorithm"
 )
 
 // Defaults, from the specification.
@@ -137,6 +138,18 @@ func (s Set) For(p keyforge.Purpose) Policy {
 		return o.merge(base)
 	}
 	return base
+}
+
+// PurposeConfigs builds the client's per-purpose configuration from the policy:
+// each purpose's data key age and volume cap, with the algorithm selection the
+// caller gives for it. A purpose with no selection uses the profile's defaults.
+func (s Set) PurposeConfigs(selections map[keyforge.Purpose]algorithm.Selection) map[keyforge.Purpose]keyforge.PurposeConfig {
+	out := make(map[keyforge.Purpose]keyforge.PurposeConfig, len(selections))
+	for p, sel := range selections {
+		pol := s.For(p)
+		out[p] = keyforge.PurposeConfig{Algorithms: sel, EncryptionCap: pol.DEKMaxEncryptions, MaxAge: pol.DEKMaxAge}
+	}
+	return out
 }
 
 // Validate checks the default and every override as resolved. cacheTTL is the
