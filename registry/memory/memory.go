@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +33,8 @@ const (
 	defectAnyRollback
 	defectIgnoreReferences
 	defectIgnoreDelay
+	defectNoHistory
+	defectShredKeepsWrapped
 )
 
 // Store is an in-memory registry. It is safe for concurrent use.
@@ -42,6 +45,7 @@ type Store struct {
 	deks     map[envelope.ID]keyforge.DEKRecord
 	current  map[scope]envelope.ID
 	sentinel map[envelope.ID]map[uint32]registry.Sentinel
+	shreds   map[scope]registry.ShredRecord
 	defect   defect
 }
 
@@ -58,11 +62,18 @@ func NewStore() *Store {
 		deks:     map[envelope.ID]keyforge.DEKRecord{},
 		current:  map[scope]envelope.ID{},
 		sentinel: map[envelope.ID]map[uint32]registry.Sentinel{},
+		shreds:   map[scope]registry.ShredRecord{},
 	}
 }
 
 func clone(r keyforge.DEKRecord) keyforge.DEKRecord {
 	r.Wrapped = slices.Clone(r.Wrapped)
+	r.WrappedUnder = slices.Clone(r.WrappedUnder)
+	return r
+}
+
+func cloneShred(r registry.ShredRecord) registry.ShredRecord {
+	r.Versions = slices.Clone(r.Versions)
 	return r
 }
 
@@ -429,6 +440,9 @@ func (s *Store) AdvanceDEK(ctx context.Context, purpose keyforge.Purpose, subjec
 	}
 
 	key := scope{purpose, subject}
+	if _, shredded := s.shreds[key]; shredded {
+		return keyforge.DEKRecord{}, fmt.Errorf("%w: %q for %q", keyforge.ErrSubjectShredded, string(purpose), subject)
+	}
 	if curID, ok := s.current[key]; ok {
 		cur := s.deks[curID]
 		if cur.Epoch != from {
@@ -446,6 +460,7 @@ func (s *Store) AdvanceDEK(ctx context.Context, purpose keyforge.Purpose, subjec
 	}
 	next.State = keyforge.DEKActive
 	next.Reserved = 0
+	next.WrappedUnder = []keyforge.KEKVersionRef{{KEKID: next.KEKID, Version: next.KEKVersion}}
 	s.deks[next.ID] = clone(next)
 	s.current[key] = next.ID
 	return clone(next), nil
@@ -547,6 +562,9 @@ func (s *Store) RewrapDEK(ctx context.Context, r registry.Rewrap) error {
 		return fmt.Errorf("%w: data key %s is wrapped under version %d, not %d", registry.ErrConflict, r.ID, rec.KEKVersion, r.FromVersion)
 	}
 	rec.KEKID, rec.KEKVersion, rec.Wrapped = r.ToKEKID, r.ToVersion, slices.Clone(r.Wrapped)
+	if s.defect != defectNoHistory {
+		rec.WrappedUnder = append(slices.Clone(rec.WrappedUnder), keyforge.KEKVersionRef{KEKID: r.ToKEKID, Version: r.ToVersion})
+	}
 	s.deks[r.ID] = rec
 	return nil
 }
@@ -641,4 +659,120 @@ func (s *Store) ListSentinels(ctx context.Context, kekID envelope.ID) ([]registr
 	}
 	slices.SortFunc(out, func(a, b registry.Sentinel) int { return int(a.Version) - int(b.Version) }) //nolint:gosec // G115: orders a listing
 	return out, nil
+}
+
+// ShredSubject implements [registry.Store].
+func (s *Store) ShredSubject(ctx context.Context, purpose keyforge.Purpose, subject string, at time.Time) (registry.ShredRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return registry.ShredRecord{}, err
+	}
+	if subject == "" {
+		return registry.ShredRecord{}, fmt.Errorf("%w: a shred needs a subject", registry.ErrInvalid)
+	}
+	if at.IsZero() {
+		return registry.ShredRecord{}, fmt.Errorf("%w: a shred needs a time", registry.ErrInvalid)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := scope{purpose, subject}
+	if have, ok := s.shreds[key]; ok {
+		return cloneShred(have), nil
+	}
+
+	seen := map[keyforge.KEKVersionRef]bool{}
+	var versions []keyforge.KEKVersionRef
+	destroyed := 0
+	for id, d := range s.deks {
+		if d.Purpose != purpose || d.Subject != subject {
+			continue
+		}
+		for _, w := range d.WrappedUnder {
+			if !seen[w] {
+				seen[w] = true
+				versions = append(versions, w)
+			}
+		}
+		d.State = keyforge.DEKDestroyed
+		if s.defect != defectShredKeepsWrapped {
+			d.Wrapped = nil
+		}
+		s.deks[id] = d
+		destroyed++
+	}
+	delete(s.current, key)
+	slices.SortFunc(versions, func(a, b keyforge.KEKVersionRef) int {
+		if c := bytes.Compare(a.KEKID[:], b.KEKID[:]); c != 0 {
+			return c
+		}
+		return int(a.Version) - int(b.Version) //nolint:gosec // G115: orders a listing
+	})
+	rec := registry.ShredRecord{Purpose: purpose, Subject: subject, RequestedAt: at, Versions: versions, DEKs: destroyed}
+	if len(versions) == 0 {
+		rec.CompletedAt = at
+	}
+	s.shreds[key] = rec
+	return cloneShred(rec), nil
+}
+
+// GetShred implements [registry.Store].
+func (s *Store) GetShred(ctx context.Context, purpose keyforge.Purpose, subject string) (registry.ShredRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return registry.ShredRecord{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, ok := s.shreds[scope{purpose, subject}]
+	if !ok {
+		return registry.ShredRecord{}, fmt.Errorf("%w: %q for %q", registry.ErrShredNotFound, string(purpose), subject)
+	}
+	return cloneShred(rec), nil
+}
+
+// ListShreds implements [registry.Store].
+func (s *Store) ListShreds(ctx context.Context) ([]registry.ShredRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]registry.ShredRecord, 0, len(s.shreds))
+	for _, r := range s.shreds {
+		out = append(out, cloneShred(r))
+	}
+	slices.SortFunc(out, func(a, b registry.ShredRecord) int {
+		if a.Purpose != b.Purpose {
+			return strings.Compare(string(a.Purpose), string(b.Purpose))
+		}
+		return strings.Compare(a.Subject, b.Subject)
+	})
+	return out, nil
+}
+
+// CompleteShred implements [registry.Store].
+func (s *Store) CompleteShred(ctx context.Context, purpose keyforge.Purpose, subject string, at time.Time) (registry.ShredRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return registry.ShredRecord{}, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := scope{purpose, subject}
+	rec, ok := s.shreds[key]
+	if !ok {
+		return registry.ShredRecord{}, fmt.Errorf("%w: %q for %q", registry.ErrShredNotFound, string(purpose), subject)
+	}
+	if rec.Complete() {
+		return cloneShred(rec), nil
+	}
+	var pending int
+	for _, v := range rec.Versions {
+		if got, ok := s.versions[v.KEKID][v.Version]; !ok || got.State != registry.VersionDestroyed {
+			pending++
+		}
+	}
+	if pending > 0 {
+		return registry.ShredRecord{}, fmt.Errorf("%w: %d of %d versions", registry.ErrShredPending, pending, len(rec.Versions))
+	}
+	rec.CompletedAt = at
+	s.shreds[key] = rec
+	return cloneShred(rec), nil
 }

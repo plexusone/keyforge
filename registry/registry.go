@@ -158,6 +158,31 @@ type VersionRecord struct {
 	RetireAfter time.Time // earliest time retirement may complete
 }
 
+// ShredRecord is the registry's record of an erasure: a subject whose data keys
+// have been destroyed.
+//
+// Destroying the data keys makes the subject's data unrecoverable from the live
+// registry at once. It is not complete until every KEK version that ever wrapped
+// those keys is destroyed too, because a registry backup taken earlier holds
+// them wrapped under one of those versions, and while any survives a restored
+// backup can unwrap them.
+type ShredRecord struct {
+	Purpose     keyforge.Purpose
+	Subject     string
+	RequestedAt time.Time
+	// Versions is every KEK version that ever wrapped one of the subject's
+	// data keys, in order of KEK and version.
+	Versions []keyforge.KEKVersionRef
+	// DEKs is how many data keys were destroyed.
+	DEKs int
+	// CompletedAt is when the last of Versions was destroyed. It is zero while
+	// the shred is pending.
+	CompletedAt time.Time
+}
+
+// Complete reports whether every version has been destroyed.
+func (r ShredRecord) Complete() bool { return !r.CompletedAt.IsZero() }
+
 // Sentinel is an envelope kept for one KEK version whose plaintext is a fixed,
 // non-secret marker. The disaster-recovery drill decrypts it to prove that a
 // restored registry and keyring can still use the version. It holds no key
@@ -207,6 +232,11 @@ var (
 	ErrConflict = errors.New("registry: record changed")
 	// ErrSentinelNotFound is returned for a version that has no sentinel.
 	ErrSentinelNotFound = errors.New("registry: sentinel not found")
+	// ErrShredNotFound is returned for a subject that has not been shredded.
+	ErrShredNotFound = errors.New("registry: shred not found")
+	// ErrShredPending is returned when completing a shred while a KEK version
+	// that wrapped the subject's keys still exists.
+	ErrShredPending = errors.New("registry: a KEK version that wrapped the subject's keys still exists")
 )
 
 // TransitionError is returned for a forbidden state change. It matches
@@ -392,6 +422,23 @@ type Store interface {
 	// demoted only by advancing the epoch. Destroying a key removes its wrapped
 	// value; the record remains.
 	MarkDEK(ctx context.Context, id envelope.ID, to keyforge.DEKState) error
+
+	// ShredSubject destroys every data key of a subject under a purpose, in
+	// every state, removes their wrapped values, clears the current key, and
+	// records the KEK versions that ever wrapped them, atomically. It leaves a
+	// tombstone: a new key for the subject is refused with
+	// [keyforge.ErrSubjectShredded]. Repeating it returns the existing record
+	// and changes nothing. The subject must not be empty. If the subject had no
+	// keys the shred is complete at once.
+	ShredSubject(ctx context.Context, purpose keyforge.Purpose, subject string, at time.Time) (ShredRecord, error)
+	// GetShred returns a subject's shred record, or [ErrShredNotFound].
+	GetShred(ctx context.Context, purpose keyforge.Purpose, subject string) (ShredRecord, error)
+	// ListShreds returns every shred record ordered by purpose and subject.
+	ListShreds(ctx context.Context) ([]ShredRecord, error)
+	// CompleteShred records that the shred is complete, provided every KEK
+	// version in it has been destroyed. Otherwise it is [ErrShredPending] and
+	// nothing changes. Repeating it on a complete shred returns the record.
+	CompleteShred(ctx context.Context, purpose keyforge.Purpose, subject string, at time.Time) (ShredRecord, error)
 
 	// PutSentinel stores the sentinel for a KEK version. The version must
 	// exist. A version has one sentinel: storing an identical one again

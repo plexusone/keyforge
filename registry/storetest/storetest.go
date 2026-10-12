@@ -82,6 +82,10 @@ func Cases() []Case {
 		{"MarkDEK", caseMarkDEK},
 		{"ActivationConcurrent", caseActivationConcurrent},
 		{"RecordsAreCopies", caseCopies},
+		{"WrappedUnderKeepsEveryVersion", caseWrapHistory},
+		{"ShredSubject", caseShredSubject},
+		{"ShredCompletesOnlyWhenEveryVersionIsDestroyed", caseShredCompletion},
+		{"ShredOfAnUnknownSubjectIsImmediate", caseShredNothing},
 		{"KEKVersionUsableFollowsState", caseUsable},
 		{"ActivationTimeIsRecorded", caseActivationTime},
 		{"Sentinels", caseSentinels},
@@ -1144,5 +1148,175 @@ func caseUsable(t TB, s registry.Store) {
 	}
 	if _, err := s.KEKVersionUsable(bg, nextID(), 1); !errors.Is(err, keyforge.ErrKEKNotFound) {
 		t.Errorf("KEKVersionUsable for an unknown KEK = %v, want ErrKEKNotFound", err)
+	}
+}
+
+func refOf(k registry.KEK, v uint32) keyforge.KEKVersionRef {
+	return keyforge.KEKVersionRef{KEKID: k.ID, Version: v}
+}
+
+func caseWrapHistory(t TB, s registry.Store) {
+	t.Helper()
+	k := kekWithActive(t, s, "orders")
+	rec := advance(t, s, dekRecord(k, 1, "orders", "alice", 1), 0)
+	if got := rec.WrappedUnder; len(got) != 1 || got[0] != refOf(k, 1) {
+		t.Fatalf("WrappedUnder after creation = %+v, want [version 1]", got)
+	}
+
+	addVersion(t, s, k, 2)
+	activate(t, s, k, 2, 5)
+	move := registry.Rewrap{ID: rec.ID, FromKEKID: k.ID, FromVersion: 1, ToKEKID: k.ID, ToVersion: 2, Wrapped: []byte{9}}
+	if err := s.RewrapDEK(bg, move); err != nil {
+		t.Fatalf("RewrapDEK: %v", err)
+	}
+	// Repeating a completed rewrap must not duplicate the entry.
+	if err := s.RewrapDEK(bg, move); err != nil {
+		t.Fatalf("repeating RewrapDEK: %v", err)
+	}
+	got, err := s.GetDEK(bg, rec.ID)
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	want := []keyforge.KEKVersionRef{refOf(k, 1), refOf(k, 2)}
+	if !slices.Equal(got.WrappedUnder, want) {
+		t.Fatalf("WrappedUnder = %+v, want %+v: the version it moved away from is still in an older backup", got.WrappedUnder, want)
+	}
+	got.WrappedUnder[0].Version = 77
+	if again, _ := s.GetDEK(bg, rec.ID); again.WrappedUnder[0].Version != 1 {
+		t.Errorf("a returned record shares its history with the store")
+	}
+}
+
+func caseShredSubject(t TB, s registry.Store) {
+	t.Helper()
+	k := kekWithActive(t, s, "orders")
+	a1 := advance(t, s, dekRecord(k, 1, "orders", "alice", 1), 0)
+	a2 := advance(t, s, dekRecord(k, 1, "orders", "alice", 2), 1)
+	bob := advance(t, s, dekRecord(k, 1, "orders", "bob", 1), 0)
+	shared := advance(t, s, dekRecord(k, 1, "orders", "", 1), 0)
+
+	// Alice's first key moved to version 2 before she was shredded.
+	addVersion(t, s, k, 2)
+	activate(t, s, k, 2, 5)
+	if err := s.RewrapDEK(bg, registry.Rewrap{ID: a1.ID, FromKEKID: k.ID, FromVersion: 1, ToKEKID: k.ID, ToVersion: 2, Wrapped: []byte{7}}); err != nil {
+		t.Fatalf("RewrapDEK: %v", err)
+	}
+
+	rec, err := s.ShredSubject(bg, "orders", "alice", at(10))
+	if err != nil {
+		t.Fatalf("ShredSubject: %v", err)
+	}
+	if rec.DEKs != 2 || rec.Complete() || !rec.RequestedAt.Equal(at(10)) {
+		t.Fatalf("ShredRecord = %+v", rec)
+	}
+	// Both versions that ever wrapped her keys are on the record, including the
+	// one the first key had already left.
+	if want := []keyforge.KEKVersionRef{refOf(k, 1), refOf(k, 2)}; !slices.Equal(rec.Versions, want) {
+		t.Fatalf("Versions = %+v, want %+v", rec.Versions, want)
+	}
+
+	for _, id := range []envelope.ID{a1.ID, a2.ID} {
+		got, err := s.GetDEK(bg, id)
+		if err != nil || got.State != keyforge.DEKDestroyed || len(got.Wrapped) != 0 {
+			t.Errorf("a shredded key = %+v, %v, want destroyed with no wrapped value", got, err)
+		}
+	}
+	if _, err := s.CurrentDEK(bg, "orders", "alice"); !errors.Is(err, keyforge.ErrDEKNotFound) {
+		t.Errorf("CurrentDEK for a shredded subject = %v, want ErrDEKNotFound", err)
+	}
+	// Other subjects, and the purpose-wide key, are untouched.
+	for _, id := range []envelope.ID{bob.ID, shared.ID} {
+		got, err := s.GetDEK(bg, id)
+		if err != nil || got.State != keyforge.DEKActive || len(got.Wrapped) == 0 {
+			t.Errorf("an unrelated key = %+v, %v", got, err)
+		}
+	}
+
+	// A shredded subject stays shredded: a new key is refused.
+	_, err = s.AdvanceDEK(bg, "orders", "alice", 0, dekRecord(k, 1, "orders", "alice", 1))
+	if !errors.Is(err, keyforge.ErrSubjectShredded) {
+		t.Errorf("a new key for a shredded subject = %v, want ErrSubjectShredded", err)
+	}
+
+	// Repeating changes nothing and returns the same record.
+	again, err := s.ShredSubject(bg, "orders", "alice", at(99))
+	if err != nil || !again.RequestedAt.Equal(at(10)) || again.DEKs != 2 {
+		t.Errorf("repeating ShredSubject = %+v, %v, want the original record", again, err)
+	}
+	got, err := s.GetShred(bg, "orders", "alice")
+	if err != nil || got.DEKs != 2 {
+		t.Errorf("GetShred = %+v, %v", got, err)
+	}
+	if _, err := s.GetShred(bg, "orders", "bob"); !errors.Is(err, registry.ErrShredNotFound) {
+		t.Errorf("GetShred for an unshredded subject = %v, want ErrShredNotFound", err)
+	}
+	if list, err := s.ListShreds(bg); err != nil || len(list) != 1 || list[0].Subject != "alice" {
+		t.Errorf("ListShreds = %+v, %v", list, err)
+	}
+	if n, _ := s.CountDEKs(bg, k.ID, 1); n != 2 { // bob and the shared key remain under version 1
+		t.Errorf("CountDEKs = %d, want 2 after shredding", n)
+	}
+
+	if _, err := s.ShredSubject(bg, "orders", "", at(1)); !errors.Is(err, registry.ErrInvalid) {
+		t.Errorf("ShredSubject with no subject = %v, want ErrInvalid", err)
+	}
+}
+
+func caseShredCompletion(t TB, s registry.Store) {
+	t.Helper()
+	k := kekWithActive(t, s, "orders")
+	advance(t, s, dekRecord(k, 1, "orders", "alice", 1), 0)
+	addVersion(t, s, k, 2)
+	activate(t, s, k, 2, 5)
+
+	rec, err := s.ShredSubject(bg, "orders", "alice", at(10))
+	if err != nil || len(rec.Versions) != 1 || rec.Complete() {
+		t.Fatalf("ShredSubject = %+v, %v", rec, err)
+	}
+	// Version 1 still exists, so a backup that holds the key could still open it.
+	if _, err := s.CompleteShred(bg, "orders", "alice", at(11)); !errors.Is(err, registry.ErrShredPending) {
+		t.Fatalf("CompleteShred while a version survives = %v, want ErrShredPending", err)
+	}
+	if got, _ := s.GetShred(bg, "orders", "alice"); got.Complete() {
+		t.Fatalf("a pending shred reads as complete")
+	}
+
+	// Retire and destroy version 1: nothing references it now.
+	transition(t, s, k, 1, registry.VersionRetireRequested, registry.TransitionOptions{At: at(12), RetireAfter: at(13)})
+	transition(t, s, k, 1, registry.VersionRetired, registry.TransitionOptions{At: at(14)})
+	if _, err := s.CompleteShred(bg, "orders", "alice", at(15)); !errors.Is(err, registry.ErrShredPending) {
+		t.Fatalf("CompleteShred with the version only retired = %v, want ErrShredPending", err)
+	}
+	transition(t, s, k, 1, registry.VersionDestroyed, registry.TransitionOptions{At: at(16)})
+
+	done, err := s.CompleteShred(bg, "orders", "alice", at(17))
+	if err != nil || !done.Complete() || !done.CompletedAt.Equal(at(17)) {
+		t.Fatalf("CompleteShred = %+v, %v", done, err)
+	}
+	// Completing again returns it unchanged.
+	again, err := s.CompleteShred(bg, "orders", "alice", at(99))
+	if err != nil || !again.CompletedAt.Equal(at(17)) {
+		t.Fatalf("repeating CompleteShred = %+v, %v", again, err)
+	}
+	if _, err := s.CompleteShred(bg, "orders", "nobody", at(1)); !errors.Is(err, registry.ErrShredNotFound) {
+		t.Errorf("CompleteShred of an unknown shred = %v, want ErrShredNotFound", err)
+	}
+}
+
+func caseShredNothing(t TB, s registry.Store) {
+	t.Helper()
+	kekWithActive(t, s, "orders")
+	rec, err := s.ShredSubject(bg, "orders", "never-seen", at(3))
+	if err != nil || rec.DEKs != 0 || len(rec.Versions) != 0 || !rec.Complete() || !rec.CompletedAt.Equal(at(3)) {
+		t.Fatalf("ShredSubject of a subject with no keys = %+v, %v, want complete at once", rec, err)
+	}
+	// The tombstone still stops the subject being enrolled afterwards.
+	k, err := s.KEKForPurpose(bg, "orders")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	_, err = s.AdvanceDEK(bg, "orders", "never-seen", 0, dekRecord(k, 1, "orders", "never-seen", 1))
+	if !errors.Is(err, keyforge.ErrSubjectShredded) {
+		t.Errorf("a key for a subject shredded before it had any = %v, want ErrSubjectShredded", err)
 	}
 }

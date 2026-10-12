@@ -60,6 +60,8 @@ func TestSuiteCatchesDefects(t *testing.T) {
 			{"any decrypt-only version can be reactivated", defectAnyRollback, "RollbackOnlyToMostRecentDecryptOnly"},
 			{"a referenced version can be retired", defectIgnoreReferences, "RetirementNeedsDelayAndNoReferences"},
 			{"retirement ignores its delay", defectIgnoreDelay, "RetirementNeedsDelayAndNoReferences"},
+			{"a re-wrap forgets the version it left", defectNoHistory, "ShredSubject"},
+			{"a shred leaves the wrapped value", defectShredKeepsWrapped, "ShredSubject"},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {

@@ -37,6 +37,13 @@ type KEKVersion struct {
 	Version uint32
 }
 
+// KEKVersionRef names a KEK version by identifier, without the provider
+// reference. A data key's wrapping history is a list of these.
+type KEKVersionRef struct {
+	KEKID   envelope.ID
+	Version uint32
+}
+
 // DEKState is the lifecycle state of a data key.
 type DEKState uint8
 
@@ -82,4 +89,9 @@ type DEKRecord struct {
 	State      DEKState
 	Reserved   uint64 // high-water mark of reserved encryptions
 	CreatedAt  time.Time
+	// WrappedUnder lists every KEK version this key has been wrapped under, in
+	// order, ending with the current one. A backup of the registry taken at any
+	// point holds the key wrapped under one of them, which is what decides when
+	// destroying the key is complete.
+	WrappedUnder []KEKVersionRef
 }
