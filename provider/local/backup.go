@@ -170,6 +170,17 @@ func (p *Provider) BackupStatus(ctx context.Context) (BackupStatus, error) {
 	return BackupStatus{Generation: h.generation, Acknowledged: f.Acknowledged, AcknowledgedAt: f.At, Note: f.Note}, nil
 }
 
+// UpToDate reports whether the acknowledged backup is the current keyring. It
+// satisfies the rotation package's backup check, which waits on it when policy
+// requires a verified backup.
+func (p *Provider) UpToDate(ctx context.Context) (bool, error) {
+	st, err := p.BackupStatus(ctx)
+	if err != nil {
+		return false, err
+	}
+	return st.UpToDate(), nil
+}
+
 // AckBackup records that the operator has safely stored a copy of the keyring
 // at generation gen. It cannot acknowledge a generation the keyring has not
 // reached, or one older than the last acknowledgement. Repeating the same
