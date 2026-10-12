@@ -15,6 +15,7 @@ import (
 	"github.com/plexusone/keyforge/audit"
 	"github.com/plexusone/keyforge/envelope"
 	"github.com/plexusone/keyforge/guard"
+	"github.com/plexusone/keyforge/metrics"
 	"github.com/plexusone/keyforge/policy"
 	"github.com/plexusone/keyforge/provider"
 	"github.com/plexusone/keyforge/provider/local"
@@ -1187,5 +1188,28 @@ func TestRewrapAllNeedsAnActiveVersion(t *testing.T) {
 	}
 	if _, err := w.rot.RewrapAll(bg, w.kek.ID, rotate.RewrapOptions{}); !errors.Is(err, keyforge.ErrNoActiveKEK) {
 		t.Fatalf("RewrapAll with no active version = %v, want ErrNoActiveKEK", err)
+	}
+}
+
+func TestRotationAndRewrapAreMetered(t *testing.T) {
+	rec := metrics.NewRecorder()
+	w := newWorld(t, setup{})
+	w.seed(w.client(small), 6) // three data keys
+	rot := w.rotator(t, func(o *rotate.Options) { o.Metrics = rec })
+
+	if _, err := rot.RotateKEK(bg, purpose); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rot.Rewrap(bg, w.kek.ID, 1, rotate.RewrapOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := rec.Counter(metrics.Rotations, metrics.L("purpose", "orders"), metrics.L("outcome", "ok")); got != 1 {
+		t.Errorf("rotations = %d, want 1", got)
+	}
+	if got := rec.Counter(metrics.RewrappedKeys, metrics.L("outcome", "moved")); got != 3 {
+		t.Errorf("moved = %d, want 3", got)
+	}
+	if got := rec.Counter(metrics.RewrappedKeys, metrics.L("outcome", "failed")); got != 0 {
+		t.Errorf("failed = %d, want 0", got)
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/plexusone/keyforge/audit"
 	"github.com/plexusone/keyforge/guard"
 	"github.com/plexusone/keyforge/jobs"
+	"github.com/plexusone/keyforge/metrics"
 	"github.com/plexusone/keyforge/policy"
 	"github.com/plexusone/keyforge/provider"
 	providermemory "github.com/plexusone/keyforge/provider/memory"
@@ -669,5 +670,44 @@ func TestRunTicksOnItsOwn(t *testing.T) {
 	}
 	if got := w.states(); len(got) != 2 {
 		t.Fatalf("versions = %v, want exactly one rotation", got)
+	}
+}
+
+func TestSchedulerReportsOverdueAndJobMetrics(t *testing.T) {
+	rec := metrics.NewRecorder()
+	w := newWorld(t, policy.Set{Default: policy.Policy{KEKInterval: 30 * day}}, nil)
+	w.seed(4)
+	e := w.embedded("", func(o *jobs.EmbeddedOptions) { o.Metrics = rec; o.Backoff, o.MaxBackoff = time.Minute, time.Hour })
+	w.run(e)
+	p := metrics.L("purpose", string(purpose))
+
+	mustTick(t, e)
+	if v, ok := rec.GaugeValue(metrics.RotationOverdue, p); !ok || v != 0 {
+		t.Fatalf("overdue gauge before the date = %v, %v, want a reported zero", v, ok)
+	}
+
+	w.prov.set(true, false) // the rotation will fail
+	w.clock.Advance(31*day + time.Hour)
+	res := mustTick(t, e)
+	if v, _ := rec.GaugeValue(metrics.RotationOverdue, p); v != float64((day + time.Hour).Seconds()) {
+		t.Fatalf("overdue gauge = %v, want %v seconds", v, (day + time.Hour).Seconds())
+	}
+	if got := rec.Counter(metrics.JobsStarted, metrics.L("kind", "rotate-kek")); got != 1 {
+		t.Fatalf("jobs started = %d, want 1", got)
+	}
+	settle(t, e, res.Started)
+	mustTick(t, e) // notices the failure
+	if got := rec.Counter(metrics.JobsFailed, metrics.L("kind", "rotate-kek")); got != 1 {
+		t.Fatalf("jobs failed = %d, want 1", got)
+	}
+
+	// Recovery clears the gauge; it does not merely stop updating it.
+	w.prov.set(false, false)
+	w.clock.Advance(2 * time.Minute)
+	res = mustTick(t, e)
+	settle(t, e, res.Started)
+	mustTick(t, e)
+	if v, ok := rec.GaugeValue(metrics.RotationOverdue, p); !ok || v != 0 {
+		t.Fatalf("overdue gauge after the rotation = %v, %v, want zero", v, ok)
 	}
 }

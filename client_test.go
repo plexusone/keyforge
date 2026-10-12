@@ -12,6 +12,7 @@ import (
 	"github.com/plexusone/keyforge"
 	"github.com/plexusone/keyforge/algorithm"
 	"github.com/plexusone/keyforge/envelope"
+	"github.com/plexusone/keyforge/metrics"
 	"github.com/plexusone/keyforge/provider"
 )
 
@@ -896,5 +897,99 @@ func TestShreddedSubjectCannotBeWrittenAgain(t *testing.T) {
 	// Other subjects are unaffected.
 	if _, err := c.EncryptFor(bg, testPurpose, "bob", []byte("x"), nil); err != nil {
 		t.Fatalf("an unrelated subject: %v", err)
+	}
+}
+
+// ---- metrics ----
+
+func TestClientReportsOperationsAndCache(t *testing.T) {
+	rec := metrics.NewRecorder()
+	en := newEnv(t, func(e *env) {
+		e.opts.Metrics = rec
+		e.opts.EncryptionCap, e.opts.ReserveBlock = 2, 2
+	})
+	c := en.client()
+
+	var envs []*envelope.Envelope
+	for range 5 {
+		e, err := c.Encrypt(bg, testPurpose, []byte("x"), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		envs = append(envs, e)
+	}
+	for _, e := range envs {
+		if _, _, err := c.Decrypt(bg, testPurpose, e, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	purpose := metrics.L("purpose", "session-secrets")
+	if got := rec.Counter(metrics.Operations, metrics.L("op", "encrypt"), purpose, metrics.L("outcome", "ok")); got != 5 {
+		t.Errorf("encrypt ok = %d, want 5", got)
+	}
+	if got := rec.Counter(metrics.Operations, metrics.L("op", "decrypt"), purpose, metrics.L("outcome", "ok")); got != 5 {
+		t.Errorf("decrypt ok = %d, want 5", got)
+	}
+	if rec.Observations(metrics.OperationDuration, metrics.L("op", "encrypt"), purpose) != 5 {
+		t.Error("encrypt durations were not observed")
+	}
+	// Five encryptions at a cap of two: the first epoch, then two cap rolls.
+	if got := rec.Counter(metrics.EpochAdvances, purpose, metrics.L("reason", "first")); got != 1 {
+		t.Errorf("first epochs = %d, want 1", got)
+	}
+	if got := rec.Counter(metrics.EpochAdvances, purpose, metrics.L("reason", "cap")); got != 2 {
+		t.Errorf("cap rolls = %d, want 2", got)
+	}
+	if hits := rec.Counter(metrics.CacheLookups, metrics.L("cache", "dek"), metrics.L("result", "hit")); hits == 0 {
+		t.Error("no cache hits were reported although every decrypt used a cached key")
+	}
+}
+
+func TestClientReportsFailuresByClass(t *testing.T) {
+	rec := metrics.NewRecorder()
+	en := newEnv(t, func(e *env) { e.opts.Metrics = rec })
+	c := en.client()
+	e, err := c.Encrypt(bg, testPurpose, []byte("x"), []byte("ctx"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := c.Decrypt(bg, testPurpose, e, []byte("wrong")); err == nil {
+		t.Fatal("a wrong context decrypted")
+	}
+	if _, err := c.Encrypt(bg, "not-configured", []byte("x"), nil); err == nil {
+		t.Fatal("an unconfigured purpose encrypted")
+	}
+	en.store.fail(errors.New("down"))
+	if _, _, err := en.client().Decrypt(bg, testPurpose, e, []byte("ctx")); err == nil {
+		t.Fatal("a client with nothing cached decrypted during an outage")
+	}
+
+	op := func(op, purpose, outcome string) int64 {
+		return rec.Counter(metrics.Operations, metrics.L("op", op), metrics.L("purpose", purpose), metrics.L("outcome", outcome))
+	}
+	if got := op("decrypt", "session-secrets", "authentication"); got != 1 {
+		t.Errorf("authentication failures = %d, want 1", got)
+	}
+	if got := op("decrypt", "session-secrets", "unavailable"); got != 1 {
+		t.Errorf("outage failures = %d, want 1", got)
+	}
+	if got := op("encrypt", "unknown", "invalid"); got != 1 {
+		t.Errorf("an unconfigured purpose = %d, want 1 under the label unknown", got)
+	}
+	// No label carries anything unbounded: the unconfigured purpose's name, the
+	// context and the error text are all absent.
+	for _, name := range rec.Names() {
+		for _, leak := range []string{"not-configured", "ctx", "wrong", "down"} {
+			if strings.Contains(name, leak) {
+				t.Errorf("metric %q carries %q", name, leak)
+			}
+		}
+	}
+}
+
+func TestMetricsAreOptional(t *testing.T) {
+	c := newEnv(t).client() // no Metrics configured
+	if _, err := c.Encrypt(bg, testPurpose, []byte("x"), nil); err != nil {
+		t.Fatal(err)
 	}
 }
