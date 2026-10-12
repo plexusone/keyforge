@@ -227,6 +227,20 @@ func (s *Selector) Check(id ID, sel Selection) error {
 	return nil
 }
 
+// CheckWrite decides whether id may be used to write under sel: it must pass
+// [Selector.Check] and, when the purpose lists algorithms, be one of them.
+// A data key created under an algorithm that has since left the list fails
+// here, so the caller rotates to a new epoch instead of writing with it.
+func (s *Selector) CheckWrite(id ID, sel Selection) error {
+	if err := s.Check(id, sel); err != nil {
+		return err
+	}
+	if len(sel.Allowed) > 0 && !slices.Contains(sel.Allowed, id) {
+		return &NotPermittedError{Algorithm: id, Profile: s.effective(sel)}
+	}
+	return nil
+}
+
 // ValidateSelection checks one purpose's configuration against the active
 // profile: a pinned profile must be no wider, and every listed algorithm must
 // exist, appear once, and be permitted. It also requires that a write has an

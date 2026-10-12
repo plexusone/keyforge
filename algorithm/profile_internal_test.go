@@ -187,3 +187,24 @@ func TestValidateReportsEveryPurposeInOrder(t *testing.T) {
 		t.Fatalf("Validate = %v for a valid set", err)
 	}
 }
+
+func TestCheckWriteHonorsTheList(t *testing.T) {
+	std := syntheticSelector(t, Config{Profile: ProfileStandard})
+	sel := Selection{Allowed: []ID{1}}
+	if err := std.CheckWrite(1, sel); err != nil {
+		t.Fatalf("CheckWrite(1) = %v", err)
+	}
+	// 2 is in the profile, so it still reads, but it has left the write list.
+	if err := std.Check(2, sel); err != nil {
+		t.Fatalf("Check(2) = %v", err)
+	}
+	if err := std.CheckWrite(2, sel); !errors.Is(err, ErrNotPermitted) {
+		t.Fatalf("CheckWrite(2) = %v, want ErrNotPermitted", err)
+	}
+	if err := std.CheckWrite(2, Selection{}); err != nil {
+		t.Fatalf("with no list every profile member may write: %v", err)
+	}
+	if err := std.CheckWrite(9, Selection{}); !errors.Is(err, ErrUnknown) {
+		t.Fatalf("CheckWrite(9) = %v, want ErrUnknown", err)
+	}
+}
