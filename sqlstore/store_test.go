@@ -215,3 +215,40 @@ func dir(t *testing.T) string {
 	d, _ := dirs.LoadOrStore(t.Name(), t.TempDir())
 	return d.(string)
 }
+
+func TestSQLiteBackupIsAUsableCopy(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	s, err := sqlstore.OpenSQLite(ctx, filepath.Join(dir, "registry.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := s.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	_, dek := seed(t, s, "orders")
+
+	dest := filepath.Join(dir, "backup.db")
+	if err := s.Backup(ctx, dest); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Backup(ctx, dest); err == nil {
+		t.Fatal("a backup overwrote an existing file")
+	}
+
+	b, err := sqlstore.OpenSQLite(ctx, dest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := b.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	got, err := b.GetDEK(ctx, dek.ID)
+	if err != nil || string(got.Wrapped) != "wrapped" {
+		t.Fatalf("the backup holds %+v, %v", got, err)
+	}
+}

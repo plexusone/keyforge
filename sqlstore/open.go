@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // registers the "pgx" driver
@@ -72,4 +73,34 @@ func finish(ctx context.Context, db *sql.DB, d Dialect) (*Store, error) {
 		return nil, errors.Join(err, db.Close())
 	}
 	return s, nil
+}
+
+// Backup writes a consistent copy of a SQLite registry to path, which must not
+// exist. It is safe while the store is in use: the copy is a snapshot taken in
+// one transaction, including what is still in the write-ahead log, so copying
+// the database file by itself is not a backup.
+//
+// A restored registry is only usable with a keyring that holds the key
+// versions it names, so a backup of the registry and a backup of the keyring
+// belong together.
+func (s *Store) Backup(ctx context.Context, path string) error {
+	if s.dialect != SQLite {
+		return fmt.Errorf("sqlstore: Backup supports SQLite only; back up PostgreSQL with its own tools")
+	}
+	if path == "" {
+		return errors.New("sqlstore: a backup path is required")
+	}
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("sqlstore: backup %s already exists", path)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("sqlstore: backup: %w", err)
+	}
+	// VACUUM INTO takes a string literal, not a parameter, so the path is
+	// quoted by doubling single quotes, which is SQLite's only escape.
+	lit := "'" + strings.ReplaceAll(path, "'", "''") + "'"
+	//nolint:gosec // G202: the only input is a quoted file path, and a parameter is not allowed here
+	if _, err := s.db.ExecContext(ctx, "VACUUM INTO "+lit); err != nil {
+		return fmt.Errorf("sqlstore: backup: %w", err)
+	}
+	return nil
 }
