@@ -658,3 +658,29 @@ func TestConcurrentUse(t *testing.T) {
 		t.Errorf("only %d data keys for %d encryptions at cap %d", len(seen), workers*each, capN)
 	}
 }
+
+// TestDEKWrapAADLayoutIsFrozen pins the bytes a data key is wrapped with. They
+// are stored format: a change makes every existing wrapped key unreadable, so
+// it must be a deliberate, versioned decision and not a refactor.
+func TestDEKWrapAADLayoutIsFrozen(t *testing.T) {
+	var dek, kek envelope.ID
+	for i := range dek {
+		dek[i] = 0x10 + byte(i)
+		kek[i] = 0x20 + byte(i)
+	}
+	got := keyforge.DEKWrapAAD("orders", "alice", dek, kek)
+	want := []byte("keyforge/dek/v1\x00" +
+		"\x00\x00\x00\x06orders" +
+		"\x00\x00\x00\x05alice" +
+		string(dek[:]) + string(kek[:]))
+	if !bytes.Equal(got, want) {
+		t.Fatalf("DEKWrapAAD = %q\nwant         %q", got, want)
+	}
+	// Each field is length-prefixed, so shifting a byte between purpose and
+	// subject cannot produce the same data.
+	a := keyforge.DEKWrapAAD("ab", "c", dek, kek)
+	b := keyforge.DEKWrapAAD("a", "bc", dek, kek)
+	if bytes.Equal(a, b) {
+		t.Fatal("different purpose and subject splits produce the same additional data")
+	}
+}

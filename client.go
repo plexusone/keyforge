@@ -556,7 +556,7 @@ func (c *Client) advance(ctx context.Context, purpose Purpose, subject string, c
 		Algorithm: alg, KEKID: kv.Ref.ID, KEKVersion: kv.Version,
 		State: DEKActive, CreatedAt: c.clock.Now(),
 	}
-	rec.Wrapped, err = prov.Wrap(ctx, kv.Ref, kv.Version, dek, dekAAD(purpose, subject, id, kv.Ref.ID))
+	rec.Wrapped, err = prov.Wrap(ctx, kv.Ref, kv.Version, dek, DEKWrapAAD(purpose, subject, id, kv.Ref.ID))
 	if err != nil {
 		return DEKRecord{}, fmt.Errorf("%w: wrapping a new data key: %w", ErrKeyUnavailable, err)
 	}
@@ -593,7 +593,7 @@ func (c *Client) handleFor(ctx context.Context, rec DEKRecord) (*dekHandle, erro
 	if err != nil {
 		return nil, err
 	}
-	dek, err := prov.Unwrap(ctx, ref, rec.KEKVersion, rec.Wrapped, dekAAD(rec.Purpose, rec.Subject, rec.ID, rec.KEKID))
+	dek, err := prov.Unwrap(ctx, ref, rec.KEKVersion, rec.Wrapped, DEKWrapAAD(rec.Purpose, rec.Subject, rec.ID, rec.KEKID))
 	if err != nil {
 		return nil, fmt.Errorf("%w: unwrapping data key %s: %w", ErrKeyUnavailable, rec.ID, err)
 	}
@@ -665,11 +665,14 @@ func (c *Client) readEntropy(b []byte) error {
 	return nil
 }
 
-// dekAAD is the additional data a data key is wrapped with. It binds the
+// DEKWrapAAD is the additional data a data key is wrapped with. It binds the
 // wrapped key to its purpose, subject, and its own and its KEK's identity, so a
 // wrapped key cannot be moved to another record. The layout is part of the
 // stored format: changing it makes existing wrapped keys unreadable.
-func dekAAD(purpose Purpose, subject string, dekID, kekID envelope.ID) []byte {
+//
+// The client uses it when it creates a data key, and the re-wrap job uses it to
+// move a key to a new KEK version, so both must produce the same bytes.
+func DEKWrapAAD(purpose Purpose, subject string, dekID, kekID envelope.ID) []byte {
 	b := append([]byte(nil), "keyforge/dek/v1\x00"...)
 	b = appendLengthPrefixed(b, string(purpose))
 	b = appendLengthPrefixed(b, subject)
