@@ -1057,8 +1057,9 @@ production use. Read the <a href="threat-model/">threat model</a> first.</p>
 </tr>
 </tbody>
 </table>
-<p>The packages that touch key material import only the standard library, and a
-test enforces it.</p>
+<p>The packages that touch key material import only the standard library and
+<a href="https://github.com/grokify/oscompat">oscompat</a>, a dependency-free module for
+operating-system differences, and a test enforces it.</p>
 
 
 

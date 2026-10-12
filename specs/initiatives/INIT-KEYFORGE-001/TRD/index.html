@@ -2249,7 +2249,14 @@
 <p>The module is one module. What keeps it reviewable is its import graph: the
 packages that touch key material (<code>algorithm</code>, <code>envelope</code>, <code>provider</code>,
 <code>provider/local</code>, the root package, and <code>metrics</code>, which holds only counters and
-bounded labels) import only the standard library, and a test enforces it. The store holds wrapped keys and never a plaintext one, so
+bounded labels) import only the standard library and one allowed module,
+<a href="https://github.com/grokify/oscompat"><code>github.com/grokify/oscompat</code></a>, which
+smooths over operating-system differences (file handling, paths) and has no
+dependencies of its own by policy; a test here enforces it, and it also fails if
+<code>oscompat</code> ever gains a dependency. Code that differs by operating system is
+added to <code>oscompat</code> and imported, not written as platform files in this module. The allowed set is a decision, recorded here, in
+<code>AGENTS.md</code> and in <code>boundary_test.go</code> together; a module is not added to it for
+convenience. The store holds wrapped keys and never a plaintext one, so
 reading or editing the database yields no key and cannot move a ciphertext to
 another record. Ent and the database drivers are imported by <code>sqlstore</code> only,
 OmniWorkflow by <code>jobs</code> only, and Cobra by <code>cli</code> and <code>cmd/keyforge</code> only.</p>

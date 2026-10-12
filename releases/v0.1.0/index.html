@@ -1287,9 +1287,15 @@ and crashes, and data keys move to a new epoch by volume and by age. See
 <td><code>github.com/spf13/cobra</code></td>
 <td>Command line</td>
 </tr>
+<tr>
+<td><code>github.com/grokify/oscompat</code></td>
+<td>File locking, directory sync and permission checks (no dependencies of its own)</td>
+</tr>
 </tbody>
 </table>
-<p>The packages that touch key material import only the standard library.</p>
+<p>The packages that touch key material import only the standard library and
+<a href="https://github.com/grokify/oscompat">oscompat</a>, a dependency-free module for
+operating-system differences.</p>
 
 
 
