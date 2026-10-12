@@ -80,7 +80,7 @@ running locally.
 | FR6 | Data-key epochs: a new data key per purpose per period or per volume of encryptions; old epochs decrypt-only |
 | FR7 | Lazy re-encryption: decrypting reports a stale envelope so callers can rewrite it on the next write |
 | FR8 | Retirement and destruction as separate steps with a delay, a caller-supplied guard that can refuse, and an audit event |
-| FR9 | Per-subject data keys, so destroying one key makes one subject's data unrecoverable everywhere it was copied |
+| FR9 | Per-subject data keys, so destroying one subject's keys makes that subject's data unrecoverable everywhere it was copied, once every KEK version that wrapped those keys is also destroyed; a shred is reported as pending, with its expected completion, until then |
 | FR10 | Emergency rotation: destroy a compromised version and re-encrypt, as a separate audited procedure |
 | FR10a | A retained-versions floor (default two: the active and previous versions) with rollback to the previous version; older versions retire only when unreferenced, past the delay, outside any hold, and allowed by the guard |
 | FR10b | A built-in canary purpose that runs the full key lifecycle weekly on a key holding no data, with `keyforge verify` on demand and an alert when a drill fails or is overdue |

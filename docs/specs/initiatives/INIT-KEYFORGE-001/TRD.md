@@ -284,6 +284,33 @@ epoch is no longer current, and `Reencrypt` produces a current envelope, so
 hosts can rewrite data on its next write or in a throttled background pass.
 No pass is required for correctness.
 
+### Per-subject keys and crypto-shredding
+
+A purpose can be declared **per-subject**: each subject (a user, a tenant)
+gets its own DEK epochs, and `Encrypt` takes the subject with the purpose.
+Shredding a subject destroys its DEKs, which makes its data unrecoverable
+wherever the ciphertext was copied.
+
+Destroying a DEK record does not complete the shred on its own. Registry
+backups still hold the subject's DEK wrapped under the KEK versions that were
+active while it existed, and while any of those versions survives, a restored
+backup can unwrap it. So:
+
+- **A shred is complete when every KEK version that ever wrapped the
+  subject's DEKs is destroyed.** keyforge records those versions when the
+  shred is requested and reports the shred as `pending` until the last one is
+  destroyed, then as `complete`, with an audit event for each.
+- With the defaults (KEK rotation yearly, two retained versions, the
+  retirement delay) completion takes years, and backup retention can extend
+  it, because a version is kept while backups that need it are retained.
+- A purpose that needs a shorter erasure guarantee sets a shorter KEK
+  interval. The time to complete is roughly the interval times the retained
+  versions plus the retirement delay, and `status` reports the expected date
+  per pending shred.
+- Shredding is per-subject reference mode only. Inline envelopes carry their
+  own DEK, wrapped under the KEK, and are shredded only by destroying the KEK
+  versions or the objects.
+
 ### Retirement and destruction
 
 - `retire-requested` starts a delay (default 30 days, per purpose).
@@ -455,7 +482,8 @@ Events carry an ID, time, actor (supplied by the host), action, purpose,
 key and version, outcome, and a reason, and never key material. Actions
 include `key.created`, `key.rotated`, `key.activated`, `key.rolled_back`,
 `key.retire_requested`, `key.retire_cancelled`, `key.retired`, `key.destroyed`, `key.compromised`, `wrap.failed`,
-`admin.read`, `guard.denied`, `guard.pending`, `job.failed`, `backup.stale`.
+`subject.shred_requested`, `subject.shred_completed`, `admin.read`,
+`guard.denied`, `guard.pending`, `job.failed`, `backup.stale`.
 Ordinary encrypt and decrypt are not logged individually; their rates and
 failures are metered.
 
@@ -628,6 +656,9 @@ evidence on claims and do not edit the inventory.
 - Scheduling depends on the host clock.
 - Inline-mode retirement relies on the host's statement that nothing
   references a version.
+- A subject shred is complete only when every KEK version that wrapped the
+  subject's DEKs is destroyed; until then a restored registry backup can
+  recover the data.
 
 ## Testing
 
