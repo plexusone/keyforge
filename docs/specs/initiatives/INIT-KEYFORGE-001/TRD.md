@@ -929,14 +929,53 @@ and never key material, wrapped keys or plaintext.
 
 ## Control plane
 
-- **Service:** HTTP handlers for key listing, status, rotate, request
-  retire, destroy, and backup acknowledgement, each behind a host-supplied
-  `Authorizer` (`Authorize(ctx, action, purpose) error`). Mounting and
-  authentication are the host's.
+- **Service:** an `http.Handler` (package `service`) over the library, with no
+  logic of its own. Mounting, TLS and authentication are the host's: it
+  authenticates in its own middleware, names the caller with `audit.WithActor`
+  so the events a request causes are attributed, and supplies an `Authorizer`
+  (`Authorize(ctx, action, purpose) error`) that is asked before every action.
+  There is no default: a service with no authorizer cannot be constructed.
 - **CLI:** `keyforge status`, `rotate`, `retire`, `destroy`, `backup ack`,
   `verify` (round-trips a test value through every purpose), and, with the
-  drills, `drill` (runs the DR drill on demand). The CLI is a
-  client of the library and the store, with no separate logic.
+  drills, `drill` (runs the DR drill on demand). The CLI is a client of the
+  library and the store, with no separate logic.
+
+### Endpoints
+
+| Method and path | Action | Notes |
+|---|---|---|
+| `GET /v1/status` | `status.read` | The full report; always 200 |
+| `GET /v1/health` | `status.read` | 200 when healthy, 503 with the problems otherwise |
+| `GET /v1/purposes`, `GET /v1/purposes/{purpose}` | `keys.list` | |
+| `POST /v1/purposes/{purpose}/rotate` | `keys.rotate` | Rotation only; the drain is the scheduler's or `rewrap` |
+| `POST /v1/purposes/{purpose}/rollback` | `keys.rollback` | |
+| `POST /v1/purposes/{purpose}/rewrap` | `keys.rewrap` | Synchronous, bounded by the request |
+| `POST /v1/keks/{kek}/versions/{v}/retire` | `keys.retire.request` | Starts the delay |
+| `POST .../retire/complete`, `.../retire/cancel` | `keys.retire.complete`, `keys.retire.cancel` | |
+| `POST .../destroy` | `keys.destroy` | |
+| `POST .../compromise` | `keys.compromise` | Emergency; body `{"keepMaterial": bool}` |
+| `POST /v1/datakeys/{id}/compromise`, `/destroy` | `datakeys.compromise`, `datakeys.destroy` | |
+| `POST /v1/backups/{provider}/ack` | `backup.ack` | Body `{"generation", "note"}` |
+| `POST`, `GET /v1/purposes/{purpose}/subjects/{subject}/shred` | `shred.request`, `shred.read` | 202 until complete |
+
+- **Authorization comes first.** The action is authorized before the resource is
+  looked up, and a key path is authorized against the purpose the key belongs to
+  once resolved, so a caller who may not act cannot learn from the response
+  whether a key exists. An unknown resource is a 404 only for a caller who is
+  permitted the action. No body is read before authorization.
+- **Status codes.** `401` for no identity, `403` for any other refusal, with no
+  reason echoed; `404` unknown resource; `409` for a state or policy conflict
+  (a denial by the guard, a delay not yet run, a version still referenced, a
+  stale backup); `202` for an approval still outstanding or an erasure not yet
+  complete; `503` when a key or provider is unavailable.
+- **Errors carry a stable code and a message that names no detail.** An
+  unexpected failure is `500 internal` with a generic message; the detail is the
+  host's to log.
+- **An audit gap is a warning, not a failure.** When the change was made and its
+  event could not be recorded, the response is `200` with a `warnings` entry, and
+  the caller is not told the operation failed.
+- Request bodies are JSON, at most 1 MiB, with unknown fields refused.
+- Administrative reads are themselves audited (`admin.read`).
 
 ## Algorithms and profiles
 
