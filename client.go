@@ -16,6 +16,7 @@ import (
 
 	"github.com/plexusone/keyforge/algorithm"
 	"github.com/plexusone/keyforge/envelope"
+	"github.com/plexusone/keyforge/metrics"
 	"github.com/plexusone/keyforge/provider"
 )
 
@@ -102,6 +103,9 @@ type Options struct {
 	// MaxAge is how long a data key epoch is used for writes. Zero means
 	// [DefaultMaxAge].
 	MaxAge time.Duration
+	// Metrics receives operation rates, failures and cache behavior. The
+	// default discards them.
+	Metrics metrics.Metrics
 }
 
 // Info describes how an envelope was protected, as reported by Decrypt.
@@ -131,6 +135,7 @@ type Client struct {
 	encCap    uint64
 	block     uint64
 	maxAge    time.Duration
+	metrics   metrics.Metrics
 
 	handles *lru[envelope.ID, *dekHandle] // unwrapped data keys by identifier
 	inline  *lru[[32]byte, *dekHandle]    // unwrapped inline data keys by digest
@@ -244,7 +249,7 @@ func New(opts Options) (*Client, error) {
 
 	return &Client{
 		store: opts.Store, providers: providers, sel: sel, purposes: purposes,
-		clock: clock, entropy: entropy, encCap: capN, block: block, maxAge: maxAge,
+		clock: clock, entropy: entropy, encCap: capN, block: block, maxAge: maxAge, metrics: opts.Metrics,
 		handles: newLRU[envelope.ID, *dekHandle](size, ttl, now),
 		inline:  newLRU[[32]byte, *dekHandle](size, ttl, now),
 		current: newLRU[currentKey, DEKRecord](size, ttl, now),
@@ -252,6 +257,69 @@ func New(opts Options) (*Client, error) {
 		keks:    newLRU[envelope.ID, provider.KeyRef](size, ttl, now),
 		usable:  newLRU[kekVersion, bool](size, ttl, now),
 	}, nil
+}
+
+// outcomeOf classifies an error into the small fixed set of outcomes a metric
+// may carry. It never returns the error's text: that would be unbounded.
+func outcomeOf(err error) string {
+	switch {
+	case err == nil:
+		return metrics.OutcomeOK
+	case errors.Is(err, ErrKeyUnavailable):
+		return metrics.OutcomeUnavailable
+	case errors.Is(err, ErrKeyUnusable):
+		return metrics.OutcomeUnusable
+	case errors.Is(err, envelope.ErrAuthentication):
+		return metrics.OutcomeAuthentication
+	case errors.Is(err, ErrSubjectShredded):
+		return metrics.OutcomeShredded
+	case errors.Is(err, algorithm.ErrNotPermitted), errors.Is(err, algorithm.ErrNoPermitted):
+		return metrics.OutcomeRefused
+	case errors.Is(err, ErrUnknownPurpose), errors.Is(err, ErrPurposeMismatch), errors.Is(err, ErrInvalidEnvelope),
+		errors.Is(err, ErrSubjectRequired), errors.Is(err, ErrSubjectNotAllowed), errors.Is(err, ErrInvalidSubject):
+		return metrics.OutcomeInvalid
+	default:
+		return metrics.OutcomeError
+	}
+}
+
+// purposeLabel returns the purpose as a metric label, or "unknown" for one the
+// client is not configured for, so a caller cannot make labels unbounded.
+func (c *Client) purposeLabel(p Purpose) string {
+	if _, ok := c.purposes[p]; ok {
+		return string(p)
+	}
+	return "unknown"
+}
+
+// begin starts timing an operation. The result is passed to measure.
+func (c *Client) begin() time.Time {
+	if c.metrics == nil {
+		return time.Time{}
+	}
+	return c.clock.Now()
+}
+
+// measure reports one operation: its count by outcome and its duration.
+func (c *Client) measure(op string, purpose Purpose, start time.Time, err *error) {
+	if c.metrics == nil {
+		return
+	}
+	p := metrics.L("purpose", c.purposeLabel(purpose))
+	c.metrics.Count(metrics.Operations, 1, metrics.L("op", op), p, metrics.L("outcome", outcomeOf(*err)))
+	c.metrics.Observe(metrics.OperationDuration, c.clock.Now().Sub(start), metrics.L("op", op), p)
+}
+
+// cacheLookup reports a cache hit or miss.
+func (c *Client) cacheLookup(cache string, hit bool) {
+	if c.metrics == nil {
+		return
+	}
+	result := "miss"
+	if hit {
+		result = "hit"
+	}
+	c.metrics.Count(metrics.CacheLookups, 1, metrics.L("cache", cache), metrics.L("result", result))
 }
 
 // Purge drops every cached key and view. Use it when a key must stop being
@@ -298,7 +366,8 @@ func (c *Client) limits(cfg PurposeConfig) (capN, block uint64) {
 //
 // A per-subject purpose is written with [Client.EncryptFor]; Encrypt on one is
 // [ErrSubjectRequired].
-func (c *Client) Encrypt(ctx context.Context, purpose Purpose, plaintext, context []byte) (*Envelope, error) {
+func (c *Client) Encrypt(ctx context.Context, purpose Purpose, plaintext, context []byte) (e *Envelope, err error) {
+	defer c.measure("encrypt", purpose, c.begin(), &err)
 	cfg, err := c.purposeConfig(purpose)
 	if err != nil {
 		return nil, err
@@ -337,7 +406,8 @@ func ValidateSubject(subject string) error {
 //
 // A subject that has been shredded is [ErrSubjectShredded]. A purpose that is
 // not per-subject is [ErrSubjectNotAllowed].
-func (c *Client) EncryptFor(ctx context.Context, purpose Purpose, subject string, plaintext, context []byte) (*Envelope, error) {
+func (c *Client) EncryptFor(ctx context.Context, purpose Purpose, subject string, plaintext, context []byte) (e *Envelope, err error) {
+	defer c.measure("encrypt_for", purpose, c.begin(), &err)
 	cfg, err := c.purposeConfig(purpose)
 	if err != nil {
 		return nil, err
@@ -367,7 +437,7 @@ func (c *Client) encrypt(ctx context.Context, purpose Purpose, subject string, p
 			// The current key was marked compromised or destroyed. Writing
 			// moves to a new epoch; the old key stays readable as policy
 			// allows, so what it protects can be re-encrypted.
-			if _, err := c.advance(ctx, purpose, subject, cfg, h.rec.Epoch); err != nil {
+			if _, err := c.advance(ctx, purpose, subject, cfg, h.rec.Epoch, "not_active"); err != nil {
 				return nil, err
 			}
 			continue
@@ -377,7 +447,7 @@ func (c *Client) encrypt(ctx context.Context, purpose Purpose, subject string, p
 		// record's creation time comes from the registry, so every replica
 		// agrees on it, and the compare-and-set makes one of them the winner.
 		if created := h.rec.CreatedAt; !created.IsZero() && !c.clock.Now().Before(created.Add(c.ageLimit(cfg))) {
-			if _, err := c.advance(ctx, purpose, subject, cfg, h.rec.Epoch); err != nil {
+			if _, err := c.advance(ctx, purpose, subject, cfg, h.rec.Epoch, "age"); err != nil {
 				return nil, err
 			}
 			continue
@@ -391,7 +461,7 @@ func (c *Client) encrypt(ctx context.Context, purpose Purpose, subject string, p
 		}
 		if !ok {
 			// The key has no capacity left, or is no longer current.
-			if _, err := c.advance(ctx, purpose, subject, cfg, h.rec.Epoch); err != nil {
+			if _, err := c.advance(ctx, purpose, subject, cfg, h.rec.Epoch, "cap"); err != nil {
 				return nil, err
 			}
 			continue
@@ -434,7 +504,8 @@ func (h *dekHandle) take(ctx context.Context, store Store, capN, block uint64) (
 //
 // Unlike reference mode it contacts the provider once per object, to wrap the
 // key, so it is not for a hot path against a managed key service.
-func (c *Client) EncryptInline(ctx context.Context, purpose Purpose, plaintext, bound []byte) (*Envelope, error) {
+func (c *Client) EncryptInline(ctx context.Context, purpose Purpose, plaintext, bound []byte) (e *Envelope, err error) {
+	defer c.measure("encrypt_inline", purpose, c.begin(), &err)
 	cfg, err := c.purposeConfig(purpose)
 	if err != nil {
 		return nil, err
@@ -473,7 +544,7 @@ func (c *Client) EncryptInline(ctx context.Context, purpose Purpose, plaintext, 
 		KEKVersion: kv.Version,
 		Wrapped:    wrapped,
 	}
-	e, err := envelope.Seal(aead, hdr, plaintext, bound)
+	e, err = envelope.Seal(aead, hdr, plaintext, bound)
 	if err != nil {
 		return nil, err
 	}
@@ -492,7 +563,8 @@ func (c *Client) EncryptInline(ctx context.Context, purpose Purpose, plaintext, 
 // Info.Stale reports an envelope that is not under the current key, so the
 // caller can rewrite it on its next write. No rewrite is needed for
 // correctness.
-func (c *Client) Decrypt(ctx context.Context, purpose Purpose, e *Envelope, bound []byte) ([]byte, Info, error) {
+func (c *Client) Decrypt(ctx context.Context, purpose Purpose, e *Envelope, bound []byte) (pt []byte, info Info, err error) {
+	defer c.measure("decrypt", purpose, c.begin(), &err)
 	cfg, err := c.purposeConfig(purpose)
 	if err != nil {
 		return nil, Info{}, err
@@ -540,6 +612,7 @@ func (c *Client) decryptReference(ctx context.Context, purpose Purpose, e *Envel
 func (c *Client) decryptInline(ctx context.Context, purpose Purpose, e *Envelope, bound []byte) ([]byte, Info, error) {
 	digest := inlineDigest(e.KEKID, e.KEKVersion, e.Wrapped)
 	h, ok := c.inline.get(digest)
+	c.cacheLookup("inline", ok)
 	if !ok {
 		if err := c.requireUsable(ctx, e.KEKID, e.KEKVersion); err != nil {
 			return nil, Info{}, err
@@ -579,7 +652,8 @@ func (c *Client) decryptInline(ctx context.Context, purpose Purpose, e *Envelope
 // in the same mode, so a caller can bring old data up to date. It always
 // produces a new envelope; use the Stale report from Decrypt to skip the ones
 // that are already current.
-func (c *Client) Reencrypt(ctx context.Context, purpose Purpose, e *Envelope, bound []byte) (*Envelope, error) {
+func (c *Client) Reencrypt(ctx context.Context, purpose Purpose, e *Envelope, bound []byte) (_ *Envelope, err error) {
+	defer c.measure("reencrypt", purpose, c.begin(), &err)
 	pt, info, err := c.Decrypt(ctx, purpose, e, bound)
 	if err != nil {
 		return nil, err
@@ -597,12 +671,13 @@ func (c *Client) Reencrypt(ctx context.Context, purpose Purpose, e *Envelope, bo
 func (c *Client) currentHandle(ctx context.Context, purpose Purpose, subject string, cfg PurposeConfig) (*dekHandle, error) {
 	key := currentKey{purpose, subject}
 	rec, ok := c.current.get(key)
+	c.cacheLookup("current", ok)
 	if !ok {
 		var err error
 		rec, err = c.store.CurrentDEK(ctx, purpose, subject)
 		switch {
 		case errors.Is(err, ErrDEKNotFound):
-			if rec, err = c.advance(ctx, purpose, subject, cfg, 0); err != nil {
+			if rec, err = c.advance(ctx, purpose, subject, cfg, 0, "first"); err != nil {
 				return nil, err
 			}
 		case err != nil:
@@ -633,7 +708,7 @@ func (c *Client) currentView(ctx context.Context, purpose Purpose, subject strin
 // advance creates the next epoch for a purpose and subject, from the epoch the
 // caller saw, and returns the record that is current afterwards, which is
 // another replica's if it won the race.
-func (c *Client) advance(ctx context.Context, purpose Purpose, subject string, cfg PurposeConfig, from uint32) (DEKRecord, error) {
+func (c *Client) advance(ctx context.Context, purpose Purpose, subject string, cfg PurposeConfig, from uint32, reason string) (DEKRecord, error) {
 	kv, err := c.activeKEK(ctx, purpose)
 	if err != nil {
 		return DEKRecord{}, err
@@ -683,6 +758,9 @@ func (c *Client) advance(ctx context.Context, purpose Purpose, subject string, c
 	}
 	if winner.ID == rec.ID {
 		c.handles.put(rec.ID, &dekHandle{rec: winner, aead: aead})
+		if c.metrics != nil {
+			c.metrics.Count(metrics.EpochAdvances, 1, metrics.L("purpose", c.purposeLabel(purpose)), metrics.L("reason", reason))
+		}
 	}
 	c.current.put(currentKey{purpose, subject}, winner)
 	return winner, nil
@@ -708,13 +786,15 @@ func (c *Client) AdvanceEpoch(ctx context.Context, purpose Purpose, subject stri
 	default:
 		return DEKRecord{}, fmt.Errorf("%w: %w", ErrKeyUnavailable, err)
 	}
-	return c.advance(ctx, purpose, subject, cfg, from)
+	return c.advance(ctx, purpose, subject, cfg, from, "manual")
 }
 
 // handleFor returns the usable handle for a record, unwrapping its key through
 // the provider only when it is not cached.
 func (c *Client) handleFor(ctx context.Context, rec DEKRecord) (*dekHandle, error) {
-	if h, ok := c.handles.get(rec.ID); ok {
+	h, ok := c.handles.get(rec.ID)
+	c.cacheLookup("dek", ok)
+	if ok {
 		return h, nil
 	}
 	if rec.State == DEKDestroyed {
@@ -740,14 +820,16 @@ func (c *Client) handleFor(ctx context.Context, rec DEKRecord) (*dekHandle, erro
 	if err != nil {
 		return nil, err
 	}
-	h := &dekHandle{rec: rec, aead: aead}
+	h = &dekHandle{rec: rec, aead: aead}
 	c.handles.put(rec.ID, h)
 	return h, nil
 }
 
 // handleByID returns the handle for a data key named by an envelope.
 func (c *Client) handleByID(ctx context.Context, id envelope.ID) (*dekHandle, error) {
-	if h, ok := c.handles.get(id); ok {
+	h, ok := c.handles.get(id)
+	c.cacheLookup("dek", ok)
+	if ok {
 		return h, nil
 	}
 	rec, err := c.store.GetDEK(ctx, id)
