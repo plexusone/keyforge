@@ -270,3 +270,62 @@ func TestRestoredOlderKeyringNeedsAcceptance(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestMissingRegistryBesideAKeyringIsNotAFreshStart(t *testing.T) {
+	dir := t.TempDir()
+	o := options(dir)
+	s, err := embedded.Open(bg, o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		if err := os.Remove(filepath.Join(dir, embedded.RegistryFile+suffix)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatal(err)
+		}
+	}
+	// Refused, and refused again: the first attempt must not leave an empty
+	// registry that makes the second look like a normal start.
+	for range 2 {
+		if _, err := embedded.Open(bg, o); !errors.Is(err, embedded.ErrRegistryMissing) {
+			t.Fatalf("Open = %v, want ErrRegistryMissing", err)
+		}
+		if _, err := os.Stat(filepath.Join(dir, embedded.RegistryFile)); err == nil {
+			t.Fatal("a refused start left a registry behind")
+		}
+	}
+}
+
+func TestFilesAreOwnerOnly(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "state")
+	s := open(t, options(dir))
+	check := func(path string, want os.FileMode) {
+		t.Helper()
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := info.Mode().Perm(); got&^want != 0 {
+			t.Errorf("%s has mode %v, want no more than %v", filepath.Base(path), got, want)
+		}
+	}
+	check(dir, 0o700)
+	check(filepath.Join(dir, embedded.RegistryFile), 0o600)
+	check(filepath.Join(dir, embedded.KeyringFile), 0o600)
+
+	dest := filepath.Join(t.TempDir(), "backup.db")
+	if err := s.BackupRegistry(bg, dest); err != nil {
+		t.Fatal(err)
+	}
+	check(dest, 0o600)
+}
+
+func TestPolicyDelayShorterThanTheCacheWindowIsRefused(t *testing.T) {
+	o := options(t.TempDir())
+	o.Policy.Default.RetirementDelay = time.Minute
+	if _, err := embedded.Open(bg, o); err == nil {
+		t.Fatal("a retirement delay shorter than ten cache lifetimes was accepted")
+	}
+}

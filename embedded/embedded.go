@@ -65,6 +65,14 @@ const (
 // from backup.
 var ErrKeyringMissing = errors.New("embedded: the registry holds keys but the keyring file is missing; restore the keyring from backup")
 
+// ErrRegistryMissing is returned when the keyring exists and the registry file
+// does not. Starting would register brand-new keys beside a keyring whose old
+// ones are still in it, and nothing written under those old keys could be read:
+// the registry is where their wrapped data keys are recorded. Restore the
+// registry from backup. If the registry is genuinely not wanted, remove the
+// keyring as well and start again.
+var ErrRegistryMissing = errors.New("embedded: the keyring exists but the registry file is missing; restore the registry from backup")
+
 // PurposeOptions configures one purpose.
 type PurposeOptions struct {
 	// Algorithms narrows the algorithms for the purpose. The zero value uses
@@ -148,26 +156,48 @@ func Open(ctx context.Context, o Options) (*System, error) {
 	case len(o.Purposes) == 0:
 		return nil, errors.New("embedded: at least one purpose is required")
 	}
-	if err := os.MkdirAll(o.Dir, 0o700); err != nil {
-		return nil, fmt.Errorf("embedded: %w", err)
+	// The delay before a version may be retired must outlast what a client
+	// may still have cached, or a version could be retired under a process
+	// that keeps wrapping with it.
+	if err := o.Policy.Validate(keyforge.DefaultCacheTTL); err != nil {
+		return nil, fmt.Errorf("embedded: policy: %w", err)
 	}
-	if err := os.Chmod(o.Dir, 0o700); err != nil {
+	// A directory this call creates is private to it. One that already exists
+	// is the operator's, and its mode is left alone.
+	if _, err := os.Stat(o.Dir); errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(o.Dir, 0o700); err != nil {
+			return nil, fmt.Errorf("embedded: %w", err)
+		}
+	} else if err != nil {
 		return nil, fmt.Errorf("embedded: %w", err)
 	}
 
-	reg, err := sqlstore.OpenSQLite(ctx, filepath.Join(o.Dir, RegistryFile))
+	regPath := filepath.Join(o.Dir, RegistryFile)
+	_, statErr := os.Stat(regPath)
+	registryExisted := statErr == nil
+	reg, err := sqlstore.OpenSQLite(ctx, regPath)
 	if err != nil {
 		return nil, err
 	}
-	sys, err := open(ctx, o, reg)
+	sys, err := open(ctx, o, reg, registryExisted)
 	if err != nil {
-		return nil, errors.Join(err, reg.Close())
+		err = errors.Join(err, reg.Close())
+		if !registryExisted {
+			// Opening created an empty registry. Leaving it would make the next
+			// start look like a restart of a registry that was never lost.
+			for _, suffix := range []string{"", "-wal", "-shm"} {
+				if rerr := os.Remove(regPath + suffix); rerr != nil && !errors.Is(rerr, os.ErrNotExist) {
+					err = errors.Join(err, rerr)
+				}
+			}
+		}
+		return nil, err
 	}
 	return sys, nil
 }
 
-func open(ctx context.Context, o Options, reg *sqlstore.Store) (*System, error) {
-	kr, err := openKeyring(ctx, o, reg)
+func open(ctx context.Context, o Options, reg *sqlstore.Store, registryExisted bool) (*System, error) {
+	kr, err := openKeyring(ctx, o, reg, registryExisted)
 	if err != nil {
 		return nil, err
 	}
@@ -181,11 +211,17 @@ func open(ctx context.Context, o Options, reg *sqlstore.Store) (*System, error) 
 // openKeyring opens the keyring, or creates it if this is a first start. A
 // missing keyring beside a registry that holds keys is an error, not a first
 // start.
-func openKeyring(ctx context.Context, o Options, reg *sqlstore.Store) (*local.Provider, error) {
+func openKeyring(ctx context.Context, o Options, reg *sqlstore.Store, registryExisted bool) (*local.Provider, error) {
 	lo := local.Options{Path: filepath.Join(o.Dir, KeyringFile), Root: o.Root, AcceptRollback: o.AcceptRollback}
 	kr, err := local.Open(ctx, lo)
 	switch {
 	case err == nil:
+		if !registryExisted {
+			if cerr := kr.Close(); cerr != nil {
+				return nil, errors.Join(ErrRegistryMissing, cerr)
+			}
+			return nil, ErrRegistryMissing
+		}
 		return kr, nil
 	case !errors.Is(err, local.ErrKeyringNotFound):
 		return nil, err
