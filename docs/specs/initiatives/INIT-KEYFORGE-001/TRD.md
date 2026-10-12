@@ -136,6 +136,12 @@ nonce    : 12 bytes
 ciphertext || tag
 ```
 
+- **Flags:** all eight bits are reserved and must be zero in format 1. A
+  non-zero value fails with `ErrUnsupportedFlags`. Every bit assigned later is
+  critical: a reader that does not know a set bit rejects the envelope, so no
+  bit can be silently ignored. The flags byte is part of the AAD, so it
+  cannot be changed or stripped without failing authentication. A
+  known-answer vector covers the rejection.
 - **Text form:** `kf1.` followed by unpadded base64url, for text columns and
   JSON.
 - **AAD:** the header bytes up to the nonce, followed by the caller context.
