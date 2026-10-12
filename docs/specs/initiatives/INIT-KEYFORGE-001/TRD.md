@@ -441,6 +441,31 @@ a purpose-wide key. A wrapped key therefore cannot be moved to another purpose,
 subject or record, and the re-wrap job recomputes the same additional data when
 it moves a key to a new KEK version.
 
+## Policy
+
+Policy is declared per purpose and is data: the `policy` package holds it and
+the rotation and retirement code acts on it. A deployment has a default and
+per-purpose overrides; a field a purpose leaves unset inherits.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `kekInterval` | 365 days | How long a KEK version is active before rotation |
+| `dekMaxAge` | 90 days | How long a data key epoch is current |
+| `dekMaxEncryptions` | 2³⁰ | Cap on encryptions per data key |
+| `retirementDelay` | 30 days | Wait between a request to retire a version and its retirement |
+| `retainVersions` | 2 | Floor on versions kept: the active one and the most recent decrypt-only ones |
+| `requireBackup` | false | Rotation waits until the keyring backup is acknowledged as current |
+
+- **A purpose can only tighten `requireBackup`**: it can ask for a backup the
+  default does not require, and cannot waive one the default does.
+- **The retirement delay must far exceed the cache TTL** (at least ten times),
+  so that no data key can appear under a version that is already eligible for
+  retirement. A set that violates this fails validation.
+- The encryption cap must not exceed 2³¹, well below the 2³² random-nonce
+  limit.
+- Durations are written with a day suffix in configuration (`365d`, `36h`), and
+  an unknown field is an error so a misspelled setting is not ignored.
+
 ## Rotation
 
 ### KEK rotation (automatic, default 365 days)
