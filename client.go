@@ -32,6 +32,9 @@ const (
 	// DefaultReserveBlock is how many encryptions a process reserves from the
 	// registry at a time.
 	DefaultReserveBlock uint64 = 1 << 16
+	// DefaultMaxAge is how long a data key epoch is used for writes before a
+	// new epoch is created.
+	DefaultMaxAge = 90 * 24 * time.Hour
 )
 
 // maxAdvanceAttempts bounds how often one write retries after the epoch moved.
@@ -57,6 +60,9 @@ type PurposeConfig struct {
 	// EncryptionCap overrides [Options.EncryptionCap] for this purpose. Zero
 	// uses the client's.
 	EncryptionCap uint64
+	// MaxAge overrides [Options.MaxAge] for this purpose. Zero uses the
+	// client's.
+	MaxAge time.Duration
 }
 
 // Options configures a [Client].
@@ -85,6 +91,9 @@ type Options struct {
 	// blocks reserved from the registry. Zero uses the defaults.
 	EncryptionCap uint64
 	ReserveBlock  uint64
+	// MaxAge is how long a data key epoch is used for writes. Zero means
+	// [DefaultMaxAge].
+	MaxAge time.Duration
 }
 
 // Info describes how an envelope was protected, as reported by Decrypt.
@@ -113,6 +122,7 @@ type Client struct {
 	entropy   io.Reader
 	encCap    uint64
 	block     uint64
+	maxAge    time.Duration
 
 	handles *lru[envelope.ID, *dekHandle] // unwrapped data keys by identifier
 	inline  *lru[[32]byte, *dekHandle]    // unwrapped inline data keys by digest
@@ -174,6 +184,13 @@ func New(opts Options) (*Client, error) {
 	if capN > MaxEncryptionCap {
 		return nil, fmt.Errorf("keyforge: encryption cap %d exceeds the maximum %d", capN, MaxEncryptionCap)
 	}
+	maxAge := opts.MaxAge
+	if maxAge < 0 {
+		return nil, fmt.Errorf("keyforge: maximum data key age %s is negative", maxAge)
+	}
+	if maxAge == 0 {
+		maxAge = DefaultMaxAge
+	}
 
 	selections := make(map[string]algorithm.Selection, len(opts.Purposes))
 	purposes := make(map[Purpose]PurposeConfig, len(opts.Purposes))
@@ -183,6 +200,9 @@ func New(opts Options) (*Client, error) {
 		}
 		if cfg.EncryptionCap > MaxEncryptionCap {
 			return nil, fmt.Errorf("keyforge: purpose %q: encryption cap %d exceeds the maximum %d", p, cfg.EncryptionCap, MaxEncryptionCap)
+		}
+		if cfg.MaxAge < 0 {
+			return nil, fmt.Errorf("keyforge: purpose %q: maximum data key age %s is negative", p, cfg.MaxAge)
 		}
 		selections[string(p)] = cfg.Algorithms
 		purposes[p] = cfg
@@ -210,7 +230,7 @@ func New(opts Options) (*Client, error) {
 
 	return &Client{
 		store: opts.Store, providers: providers, sel: sel, purposes: purposes,
-		clock: clock, entropy: entropy, encCap: capN, block: block,
+		clock: clock, entropy: entropy, encCap: capN, block: block, maxAge: maxAge,
 		handles: newLRU[envelope.ID, *dekHandle](size, ttl, now),
 		inline:  newLRU[[32]byte, *dekHandle](size, ttl, now),
 		current: newLRU[currentKey, DEKRecord](size, ttl, now),
@@ -236,6 +256,14 @@ func (c *Client) purposeConfig(p Purpose) (PurposeConfig, error) {
 		return PurposeConfig{}, fmt.Errorf("%w: %q", ErrUnknownPurpose, string(p))
 	}
 	return cfg, nil
+}
+
+// ageLimit returns the maximum age of a data key epoch in force for cfg.
+func (c *Client) ageLimit(cfg PurposeConfig) time.Duration {
+	if cfg.MaxAge != 0 {
+		return cfg.MaxAge
+	}
+	return c.maxAge
 }
 
 // limits returns the cap and the block size in force for cfg. A block is never
@@ -271,6 +299,16 @@ func (c *Client) encrypt(ctx context.Context, purpose Purpose, subject string, p
 			// The current key was marked compromised or destroyed. Writing
 			// moves to a new epoch; the old key stays readable as policy
 			// allows, so what it protects can be re-encrypted.
+			if _, err := c.advance(ctx, purpose, subject, cfg, h.rec.Epoch); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		// An epoch that has reached its age is replaced even though it still
+		// has capacity: a data key has a lifetime as well as a volume. The
+		// record's creation time comes from the registry, so every replica
+		// agrees on it, and the compare-and-set makes one of them the winner.
+		if created := h.rec.CreatedAt; !created.IsZero() && !c.clock.Now().Before(created.Add(c.ageLimit(cfg))) {
 			if _, err := c.advance(ctx, purpose, subject, cfg, h.rec.Epoch); err != nil {
 				return nil, err
 			}
