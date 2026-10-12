@@ -162,8 +162,8 @@ directly. `active` to `compromised` and `decrypt-only` or `compromised` to
 - **DEK**: `id`, `purpose`, `subject` (optional), `epoch`, `kek_id`,
   `kek_version`, `wrapped`, `state`, `reserved` (encryption-count high-water
   mark, see [Encryption counter](#encryption-counter)), `created_at`.
-- **Job**: `kind`, `cursor`, `state`, lease holder and expiry, for resumable
-  rotation and re-wrapping.
+- **Jobs** are not a registry record: their identity, state and resumption
+  belong to the OmniWorkflow provider that runs them (see Scheduling).
 - **Event**: the audit trail, also emitted to the sink.
 
 ## Envelope format
@@ -805,14 +805,43 @@ end to end and a single-host deployment can drill without writing any.
 
 ## Scheduling
 
-- A scheduler runs in the control-plane process. Policy is declared per
-  purpose.
-- **Leader election** is a lease row in the registry, so several replicas
-  never run the same job. Jobs are resumable from their cursor after a crash
-  or lease loss.
-- The scheduler reports overdue keys, failed jobs and a stale backup
-  acknowledgement as metrics and audit events. A key past its period is
-  reported, never silently kept.
+Lifecycle work runs as jobs on [OmniWorkflow](https://github.com/plexusone/omniworkflow),
+through its provider-neutral `WorkflowProvider`. The `jobs` package supplies the
+scheduler that notices what is due and the executor that does each step; any
+OmniWorkflow provider runs them: in-memory, the durable embedded provider,
+Temporal, or Step Functions.
+
+- **Operations are idempotent and resumable by construction**, which is what
+  makes at-least-once step delivery safe: a rotation re-checks that it is due,
+  a re-wrap moves only what has not moved, and the guarded steps ask the guard
+  again.
+- **Exactly one execution without leader election.** Every job has a
+  deterministic run ID built from what it does and to what (for example
+  `keyforge/rotate-kek/<kek>/<version>#<attempt>`). OmniWorkflow's `Start` is
+  idempotent by run ID, so several replicas that find the same work due start
+  the same run and one execution results. keyforge keeps no lease.
+- **Time is the scheduler's.** A plan has no timers, so a tick evaluates the
+  registry and starts short jobs: a rotation when a version is past its
+  interval, a drain of any non-active version still holding data keys, a
+  retirement request for a version outside the floor, a completion once the
+  delay has passed, a destruction once retired, and the recording of finished
+  erasures. A retirement delay, or a guard that is still pending, is a
+  condition the next tick finds still true.
+- **Attempts.** A finished run is terminal, and `Start` on its ID returns it
+  without running again, so each new attempt has a new number. A run that
+  succeeded while its condition still holds (a pending approval) is followed by
+  another only after a recheck interval; one that failed is followed by one
+  after a backoff that doubles up to a ceiling. A failure is reported once, with
+  a `job.failed` event, and stays in the tick result while it is the latest word.
+- **Overdue work is reported, not silently kept**: a rotation past its date is
+  listed in every tick's result, whether or not a job is running for it.
+- **Resumption.** With the durable provider a run left unfinished by a crash
+  resumes under the same run ID when the worker starts. The durable provider is
+  single-process; a deployment with several replicas gives the scheduler and
+  worker a shared provider such as Temporal.
+- **Guard approvals** are the host's callback. A `Pending` answer leaves the
+  version where it is and the next tick asks again, so a long wait for an
+  approval costs one short job per recheck interval and not a held run.
 
 ## Caching and availability
 

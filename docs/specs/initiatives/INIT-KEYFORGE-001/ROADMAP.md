@@ -62,7 +62,9 @@ certificate lifecycle through the same registry.
 
 **Theme:** A scheduler, audit, status, an HTTP service and a CLI over the library.
 
-- [ ] `RMI-KEYFORGE-016` Scheduler with registry lease for leader election, job resumption, overdue and failure reporting
+> Release gate: the scheduler depends on OmniWorkflow, developed here against a local `replace`. keyforge is not pushed or tagged until OmniWorkflow has a release without that `replace` and this repository's `go.mod` points at it.
+
+- [ ] `RMI-KEYFORGE-016` Scheduler and executor over OmniWorkflow: deterministic run IDs in place of leader election, durable resumption, retry with backoff, overdue and failure reporting
   - Depends on: `RMI-KEYFORGE-012`, `RMI-KEYFORGE-013`
 - [ ] `RMI-KEYFORGE-017` Audit `Sink` interface, event types, and a core `Metrics` interface for rates, failures and overdue keys
   - Depends on: `RMI-KEYFORGE-014`
