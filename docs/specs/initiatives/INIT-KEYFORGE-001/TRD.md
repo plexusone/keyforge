@@ -928,7 +928,15 @@ Results flow back as evidence on claims and do not edit the inventory.
 - **Fuzzing** of the envelope parser.
 - **Property tests:** encrypt, rotate any number of times, decrypt.
 - **Crash tests:** killing the process during a keyring write and during a
-  re-wrap batch leaves a consistent, resumable state.
+  re-wrap batch leaves a consistent, resumable state. For the keyring this is
+  tested two ways: a write is stopped at each stage (temporary file created,
+  written, flushed, renamed, directory flushed) and the file left behind is
+  opened, and a helper process rotating in a loop is killed at random moments
+  and the keyring checked for a torn or mixed state each time, with the dead
+  process's lock required not to block the next writer. These show that no
+  crash point leaves a keyring that fails to open or mixes two states. They
+  cannot show that the operating system and storage honor `fsync` ordering
+  through a power loss; that rests on the platform.
 - **Race detector** on the cache, scheduler and store.
 - **Injected time and randomness.** The `Client`, policy, scheduler and drill
   take a clock, and DEK and key generation take an entropy reader, so tests
