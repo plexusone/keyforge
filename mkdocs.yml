@@ -1,0 +1,64 @@
+site_name: keyforge
+site_description: Encryption and signing key lifecycle for Go applications
+site_url: https://plexusone.github.io/keyforge/
+repo_url: https://github.com/plexusone/keyforge
+repo_name: plexusone/keyforge
+
+theme:
+  name: material
+  custom_dir: docs/overrides
+  palette:
+    # Dark mode first (PlexusOne default)
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+extra_css:
+  - https://plexusone.dev/css/plexusone-mkdocs.css
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Operations: operations.md
+  - Reference:
+      - Envelope Format: format.md
+      - Threat Model: threat-model.md
+  - Design:
+      - Product Requirements: specs/initiatives/INIT-KEYFORGE-001/PRD.md
+      - Technical Requirements: specs/initiatives/INIT-KEYFORGE-001/TRD.md
+      - Plan: specs/initiatives/INIT-KEYFORGE-001/PLAN.md
+      - Roadmap: specs/initiatives/INIT-KEYFORGE-001/ROADMAP.md
+  - Releases:
+      - v0.1.0: releases/v0.1.0.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/plexusone/keyforge

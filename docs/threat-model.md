@@ -85,4 +85,4 @@ the set and never widen it. The code stays valid under
 
 ## Reporting
 
-Report a suspected vulnerability privately; see [SECURITY.md](../SECURITY.md).
+Report a suspected vulnerability privately; see [the security policy](https://github.com/plexusone/keyforge/blob/main/SECURITY.md).
