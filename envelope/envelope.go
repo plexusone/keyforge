@@ -83,6 +83,24 @@ func (id *ID) Scan(src any) error {
 	return nil
 }
 
+// MarshalText implements [encoding.TextMarshaler] with the hex form, so an
+// identifier is a string in JSON rather than an array of numbers.
+func (id ID) MarshalText() ([]byte, error) { return []byte(id.String()), nil }
+
+// UnmarshalText implements [encoding.TextUnmarshaler]. It accepts only the
+// 32-character hex form.
+func (id *ID) UnmarshalText(text []byte) error {
+	var out ID
+	if len(text) != hex.EncodedLen(len(out)) {
+		return fmt.Errorf("envelope: an ID is %d hex characters, got %d", hex.EncodedLen(len(out)), len(text))
+	}
+	if _, err := hex.Decode(out[:], text); err != nil {
+		return fmt.Errorf("envelope: invalid ID: %w", err)
+	}
+	*id = out
+	return nil
+}
+
 // Header is the authenticated, self-describing part of an envelope.
 //
 // Which fields are used depends on Mode. In reference mode DEKID names the

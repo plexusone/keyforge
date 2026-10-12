@@ -472,3 +472,26 @@ func TestIDIsStoredAsRawBytes(t *testing.T) {
 		}
 	}
 }
+
+func TestIDTextAndJSONForm(t *testing.T) {
+	id := envelope.ID{0xde, 0xad, 0xbe, 0xef, 15: 0x01}
+	b, err := json.Marshal(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `"` + id.String() + `"`; string(b) != want {
+		t.Fatalf("got %s, want %s", b, want)
+	}
+	var back envelope.ID
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	if back != id {
+		t.Fatalf("round trip: got %v", back)
+	}
+	for _, bad := range []string{`"abc"`, `"zz` + strings.Repeat("0", 30) + `"`, `[1,2]`} {
+		if err := json.Unmarshal([]byte(bad), &back); err == nil {
+			t.Fatalf("%s: expected an error", bad)
+		}
+	}
+}
