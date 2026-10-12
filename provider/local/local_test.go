@@ -200,7 +200,8 @@ func TestFileModeAndNoRootKeyOnDisk(t *testing.T) {
 			t.Errorf("the keyring file contains %s in the clear", name)
 		}
 	}
-	// Nothing but the keyring and its lock file is left beside it.
+	// Nothing but the keyring, its lock file and its backup state is left beside
+	// it: no temporary files.
 	entries, err := os.ReadDir(filepath.Dir(opts.Path))
 	if err != nil {
 		t.Fatal(err)
@@ -210,7 +211,7 @@ func TestFileModeAndNoRootKeyOnDisk(t *testing.T) {
 		names = append(names, e.Name())
 	}
 	slices.Sort(names)
-	if want := []string{"keyring.kf", "keyring.kf.lock"}; !slices.Equal(names, want) {
+	if want := []string{"keyring.kf", "keyring.kf.backup", "keyring.kf.lock"}; !slices.Equal(names, want) {
 		t.Fatalf("directory holds %v, want %v", names, want)
 	}
 }
