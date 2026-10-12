@@ -591,17 +591,22 @@ AES-256-GCM, which both profiles approve.
   the process runs in FIPS mode (`crypto/fips140.Enabled()`) and to
   `Standard` otherwise. Configuration may deny algorithms in either profile
   or select `FIPS` outside FIPS mode, which uses only the approved set
-  without module validation.
+  without module validation. A denial can only narrow the profile.
 - Each purpose declares an optional **pinned profile** and an
-  **allowed-algorithm list** that must be a subset of its profile. Startup
-  validates every configured purpose and fails fast on a violation.
-- **Writes** choose the first algorithm of the purpose's list that the active
-  profile permits. **Reads** follow the profile: an envelope that names an
-  algorithm outside it fails with `ErrAlgorithmNotPermitted`, which reports
-  the algorithm and the profile, and does not fall back. Migration is a
-  `Reencrypt` in a process whose profile permits the old algorithm.
-- `status` reports the profile, the module version and whether the process
-  is in FIPS mode.
+  **allowed-algorithm list**. A pinned profile must be no wider than the
+  active one, and the list must be a subset of the profile in force, without
+  repeats. Startup validates every configured purpose and fails fast, reporting
+  every violation, including a purpose left with no algorithm to write with.
+- **Writes** choose the first algorithm of the purpose's list that the profile
+  in force permits, or the profile's first algorithm when the list is empty;
+  with none, the write fails closed (`ErrNoPermitted`). **Reads** follow the
+  profile in force and not the write list, so narrowing a list does not strand
+  data already written: an envelope that names an algorithm outside the
+  profile fails with `ErrNotPermitted`, which reports the algorithm and the
+  profile, and does not fall back. Migration is a `Reencrypt` in a process
+  whose profile permits the old algorithm.
+- `status` reports the profile, the module version (`crypto/fips140.Version`)
+  and whether the process is in FIPS mode.
 
 ### Starting point, FIPS 140-3 and post-quantum
 
