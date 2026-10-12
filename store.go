@@ -23,6 +23,14 @@ type Store interface {
 	// [ErrKEKNotFound] for an identifier the registry does not hold.
 	KEK(ctx context.Context, id envelope.ID) (provider.KeyRef, error)
 
+	// KEKVersionUsable reports whether data keys wrapped under a KEK version
+	// may be unwrapped: it is active, decrypt-only, retire-requested or
+	// compromised. A pending, retired or destroyed version is not usable, even
+	// while the provider still holds its material. It returns
+	// [ErrKEKNotFound] for a KEK the registry does not hold, and false for a
+	// version it does not hold.
+	KEKVersionUsable(ctx context.Context, id envelope.ID, version uint32) (bool, error)
+
 	// CurrentDEK returns the data key that new writes for purpose and subject
 	// use. It returns [ErrDEKNotFound] if none exists yet.
 	CurrentDEK(ctx context.Context, purpose Purpose, subject string) (DEKRecord, error)

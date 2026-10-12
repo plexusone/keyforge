@@ -209,6 +209,12 @@ type memStore struct {
 	current  map[curKey]envelope.ID
 	calls    map[string]int
 	failWith error
+	unusable map[kekVer]bool
+}
+
+type kekVer struct {
+	id      envelope.ID
+	version uint32
 }
 
 type curKey struct {
@@ -218,11 +224,12 @@ type curKey struct {
 
 func newMemStore() *memStore {
 	return &memStore{
-		keks:    map[envelope.ID]provider.KeyRef{},
-		active:  map[keyforge.Purpose]keyforge.KEKVersion{},
-		deks:    map[envelope.ID]keyforge.DEKRecord{},
-		current: map[curKey]envelope.ID{},
-		calls:   map[string]int{},
+		keks:     map[envelope.ID]provider.KeyRef{},
+		active:   map[keyforge.Purpose]keyforge.KEKVersion{},
+		deks:     map[envelope.ID]keyforge.DEKRecord{},
+		current:  map[curKey]envelope.ID{},
+		calls:    map[string]int{},
+		unusable: map[kekVer]bool{},
 	}
 }
 
@@ -267,6 +274,18 @@ func (s *memStore) KEK(_ context.Context, id envelope.ID) (provider.KeyRef, erro
 		return provider.KeyRef{}, keyforge.ErrKEKNotFound
 	}
 	return ref, nil
+}
+
+func (s *memStore) KEKVersionUsable(_ context.Context, id envelope.ID, version uint32) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if err := s.enter("KEKVersionUsable"); err != nil {
+		return false, err
+	}
+	if _, ok := s.keks[id]; !ok {
+		return false, keyforge.ErrKEKNotFound
+	}
+	return !s.unusable[kekVer{id, version}], nil
 }
 
 func (s *memStore) CurrentDEK(_ context.Context, p keyforge.Purpose, subject string) (keyforge.DEKRecord, error) {

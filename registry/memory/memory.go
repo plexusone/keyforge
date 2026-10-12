@@ -188,6 +188,21 @@ func (s *Store) KEK(ctx context.Context, id envelope.ID) (provider.KeyRef, error
 	return k.Ref(), nil
 }
 
+// KEKVersionUsable implements [keyforge.Store].
+func (s *Store) KEKVersionUsable(ctx context.Context, id envelope.ID, version uint32) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	vs, ok := s.versions[id]
+	if !ok {
+		return false, kekNotFound(id)
+	}
+	v, ok := vs[version]
+	return ok && v.State.CanUnwrap(), nil
+}
+
 // AddVersion implements [registry.Store].
 func (s *Store) AddVersion(ctx context.Context, v registry.VersionRecord) error {
 	if err := ctx.Err(); err != nil {

@@ -129,8 +129,14 @@ type Client struct {
 	current *lru[currentKey, DEKRecord]   // current data key per purpose and subject
 	active  *lru[Purpose, KEKVersion]     // active KEK version per purpose
 	keks    *lru[envelope.ID, provider.KeyRef]
+	usable  *lru[kekVersion, bool] // whether a KEK version may be unwrapped
 
 	entropyMu sync.Mutex
+}
+
+type kekVersion struct {
+	id      envelope.ID
+	version uint32
 }
 
 type currentKey struct {
@@ -236,6 +242,7 @@ func New(opts Options) (*Client, error) {
 		current: newLRU[currentKey, DEKRecord](size, ttl, now),
 		active:  newLRU[Purpose, KEKVersion](size, ttl, now),
 		keks:    newLRU[envelope.ID, provider.KeyRef](size, ttl, now),
+		usable:  newLRU[kekVersion, bool](size, ttl, now),
 	}, nil
 }
 
@@ -248,6 +255,7 @@ func (c *Client) Purge() {
 	c.current.clear()
 	c.active.clear()
 	c.keks.clear()
+	c.usable.clear()
 }
 
 func (c *Client) purposeConfig(p Purpose) (PurposeConfig, error) {
@@ -473,6 +481,9 @@ func (c *Client) decryptInline(ctx context.Context, purpose Purpose, e *Envelope
 	digest := inlineDigest(e.KEKID, e.KEKVersion, e.Wrapped)
 	h, ok := c.inline.get(digest)
 	if !ok {
+		if err := c.requireUsable(ctx, e.KEKID, e.KEKVersion); err != nil {
+			return nil, Info{}, err
+		}
 		ref, err := c.kekRef(ctx, e.KEKID)
 		if err != nil {
 			return nil, Info{}, err
@@ -623,6 +634,9 @@ func (c *Client) handleFor(ctx context.Context, rec DEKRecord) (*dekHandle, erro
 	if rec.State == DEKDestroyed {
 		return nil, fmt.Errorf("%w: data key %s is %s", ErrKeyUnusable, rec.ID, rec.State)
 	}
+	if err := c.requireUsable(ctx, rec.KEKID, rec.KEKVersion); err != nil {
+		return nil, err
+	}
 	ref, err := c.kekRef(ctx, rec.KEKID)
 	if err != nil {
 		return nil, err
@@ -682,6 +696,27 @@ func (c *Client) kekRef(ctx context.Context, id envelope.ID) (provider.KeyRef, e
 	}
 	c.keks.put(id, ref)
 	return ref, nil
+}
+
+// requireUsable fails with [ErrKeyUnusable] for a KEK version the registry has
+// retired, destroyed or never activated, even if the provider still holds its
+// material. The answer is cached, so it costs a registry call only when a key
+// is first unwrapped.
+func (c *Client) requireUsable(ctx context.Context, id envelope.ID, version uint32) error {
+	k := kekVersion{id, version}
+	ok, cached := c.usable.get(k)
+	if !cached {
+		var err error
+		ok, err = c.store.KEKVersionUsable(ctx, id, version)
+		if err != nil {
+			return fmt.Errorf("%w: state of key-encryption key %s version %d: %w", ErrKeyUnavailable, id, version, err)
+		}
+		c.usable.put(k, ok)
+	}
+	if !ok {
+		return fmt.Errorf("%w: key-encryption key %s version %d is retired, destroyed or not yet active", ErrKeyUnusable, id, version)
+	}
+	return nil
 }
 
 func (c *Client) providerFor(ref provider.KeyRef) (provider.Provider, error) {

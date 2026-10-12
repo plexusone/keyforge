@@ -82,6 +82,7 @@ func Cases() []Case {
 		{"MarkDEK", caseMarkDEK},
 		{"ActivationConcurrent", caseActivationConcurrent},
 		{"RecordsAreCopies", caseCopies},
+		{"KEKVersionUsableFollowsState", caseUsable},
 		{"ActivationTimeIsRecorded", caseActivationTime},
 		{"Sentinels", caseSentinels},
 		{"CancelledContextChangesNothing", caseCancelled},
@@ -1094,5 +1095,51 @@ func caseSentinels(t TB, s registry.Store) {
 	}
 	if _, err := s.ListSentinels(bg, nextID()); !errors.Is(err, keyforge.ErrKEKNotFound) {
 		t.Errorf("ListSentinels for an unknown KEK = %v", err)
+	}
+}
+
+// caseUsable checks the client's view of a version: usable exactly in the
+// states the specification allows to unwrap, whatever the provider holds.
+func caseUsable(t TB, s registry.Store) {
+	t.Helper()
+	k := newKEK(t, s, "orders")
+	usable := func(v uint32) bool {
+		t.Helper()
+		ok, err := s.KEKVersionUsable(bg, k.ID, v)
+		if err != nil {
+			t.Fatalf("KEKVersionUsable(%d): %v", v, err)
+		}
+		return ok
+	}
+	addVersion(t, s, k, 1)
+	if usable(1) {
+		t.Errorf("a pending version is usable")
+	}
+	activate(t, s, k, 1, 1)
+	if !usable(1) {
+		t.Errorf("an active version is not usable")
+	}
+	addVersion(t, s, k, 2)
+	activate(t, s, k, 2, 2)
+	if !usable(1) {
+		t.Errorf("a decrypt-only version is not usable")
+	}
+	transition(t, s, k, 1, registry.VersionRetireRequested, registry.TransitionOptions{At: at(3), RetireAfter: at(4)})
+	if !usable(1) {
+		t.Errorf("a retire-requested version is not usable")
+	}
+	transition(t, s, k, 1, registry.VersionRetired, registry.TransitionOptions{At: at(5)})
+	if usable(1) {
+		t.Errorf("a retired version is usable")
+	}
+	transition(t, s, k, 1, registry.VersionDestroyed, registry.TransitionOptions{At: at(6)})
+	if usable(1) {
+		t.Errorf("a destroyed version is usable")
+	}
+	if usable(99) {
+		t.Errorf("a version that does not exist is usable")
+	}
+	if _, err := s.KEKVersionUsable(bg, nextID(), 1); !errors.Is(err, keyforge.ErrKEKNotFound) {
+		t.Errorf("KEKVersionUsable for an unknown KEK = %v, want ErrKEKNotFound", err)
 	}
 }
