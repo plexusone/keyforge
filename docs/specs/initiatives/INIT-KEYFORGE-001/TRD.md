@@ -63,7 +63,13 @@ Implements the [PRD](PRD.md).
 The module is one module. What keeps it reviewable is its import graph: the
 packages that touch key material (`algorithm`, `envelope`, `provider`,
 `provider/local`, the root package, and `metrics`, which holds only counters and
-bounded labels) import only the standard library, and a test enforces it. The store holds wrapped keys and never a plaintext one, so
+bounded labels) import only the standard library and one allowed module,
+[`github.com/grokify/oscompat`](https://github.com/grokify/oscompat), which
+smooths over operating-system differences (file handling, paths) and has no
+dependencies of its own; a test enforces it, and it also fails if `oscompat`
+ever gains a dependency. The allowed set is a decision, recorded here, in
+`AGENTS.md` and in `boundary_test.go` together; a module is not added to it for
+convenience. The store holds wrapped keys and never a plaintext one, so
 reading or editing the database yields no key and cannot move a ciphertext to
 another record. Ent and the database drivers are imported by `sqlstore` only,
 OmniWorkflow by `jobs` only, and Cobra by `cli` and `cmd/keyforge` only.

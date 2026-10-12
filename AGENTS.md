@@ -45,10 +45,17 @@ If the code and the TRD disagree, resolve it in the TRD in the same change.
 - **Fail closed.** With no usable key, an operation fails; it never falls back
   to a weaker path.
 - **No network call per encrypt or decrypt.** The data path is in process.
-- **The crypto path stays standard-library-only.** The packages that touch key
-  material (`algorithm`, `envelope`, `provider`, `provider/local`, and the root
-  `keyforge` package, plus `metrics`, which holds only counters) import only the
-  standard library, and a test enforces it.
+- **The crypto path imports the standard library and one allowed module.** The
+  packages that touch key material (`algorithm`, `envelope`, `provider`,
+  `provider/local`, and the root `keyforge` package, plus `metrics`, which holds
+  only counters) import the standard library and, for operating-system
+  differences such as file handling and paths, `github.com/grokify/oscompat`,
+  which has no dependencies of its own. Nothing else, including anything
+  `oscompat` might later depend on, and a test enforces it. Do not add a module
+  to the allowed set to make a change convenient: each is a decision recorded
+  here, in the TRD and in `boundary_test.go` together. Prefer the standard
+  library, and use `oscompat` only where the difference between platforms is
+  what the code is about.
   That boundary, not the number of modules, is what keeps the library
   reviewable: the store holds wrapped keys and never a plaintext one.
 - **One module, with Ent as the supported persistence layer.** `sqlstore` is the
