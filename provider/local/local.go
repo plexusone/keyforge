@@ -63,9 +63,12 @@ type Options struct {
 	// directory. Leave it false outside tests.
 	AllowRootKeyBesideKeyring bool
 	// AcceptRollback opens a keyring that is older than one this host has
-	// seen, which is what restoring from backup produces. Set it only after
-	// confirming that the restore was intended; new writes continue from the
-	// highest generation seen, so generations are never reused.
+	// seen, which is what restoring from backup produces. It also opens a
+	// keyring whose backup state is missing (past generation 1) or in the
+	// older unauthenticated format, and rewrites that state authenticated.
+	// Set it only after confirming that the restore was intended; new writes
+	// continue from the highest generation seen, so generations are never
+	// reused.
 	AcceptRollback bool
 }
 
@@ -80,6 +83,7 @@ type Provider struct {
 	mu     sync.Mutex
 	root   RootKeySource
 	aead   cipher.AEAD // seals and opens the file under the key derived from the root key
+	macKey []byte      // authenticates the backup state, derived from the root key
 	rootID [rootKeyIDSize]byte
 	st     *state
 	gen    uint64
@@ -131,7 +135,11 @@ func (p *Provider) useRoot(ctx context.Context, src RootKeySource) error {
 	if err != nil {
 		return err
 	}
-	p.aead, p.rootID, p.root = aead, id, src
+	macKey, err := deriveStateMACKey(root)
+	if err != nil {
+		return err
+	}
+	p.aead, p.macKey, p.rootID, p.root = aead, macKey, id, src
 	return nil
 }
 
@@ -202,14 +210,32 @@ func Open(ctx context.Context, opts Options) (*Provider, error) {
 // checkRollback compares the generation just read with the highest this host
 // has seen. It refuses an older keyring unless the caller has accepted the
 // rollback, and records a higher generation when the file is ahead.
+//
+// Without accept it also refuses when the high-water mark cannot be trusted:
+// a keyring past generation 1 with no backup state, or state in the older
+// unauthenticated format. With accept, an unauthenticated state's contents
+// are kept and the state is rewritten authenticated.
 func (p *Provider) checkRollback(ctx context.Context, gen uint64, accept bool) error {
 	unlock, err := lockFile(ctx, p.lockPath)
 	if err != nil {
 		return err
 	}
 	defer unlock()
-	f, err := p.loadBackup()
-	if err != nil {
+	f, err := p.readBackup()
+	trusted := err == nil
+	switch {
+	case err == nil:
+	case errors.Is(err, errNoBackupState):
+		// Create writes the keyring at generation 1 before its state, so a
+		// crash between the two leaves exactly this.
+		if gen > 1 && !accept {
+			return fmt.Errorf("%w: the keyring is at generation %d", ErrBackupStateMissing, gen)
+		}
+	case errors.Is(err, ErrUnauthenticatedBackupState):
+		if !accept {
+			return err
+		}
+	default:
 		return err
 	}
 	if gen < f.Highest {
@@ -220,6 +246,12 @@ func (p *Provider) checkRollback(ctx context.Context, gen uint64, accept bool) e
 		// statement about it. The high-water mark stays, so writes continue
 		// above every generation seen.
 		f.Acknowledged = min(f.Acknowledged, gen)
+		return p.saveBackup(f)
+	}
+	if !trusted {
+		// Accepted state that could not be trusted is written again,
+		// authenticated, so the next open does not need the acknowledgement.
+		f.Highest = max(f.Highest, gen)
 		return p.saveBackup(f)
 	}
 	return p.notePersisted(gen)
@@ -377,6 +409,8 @@ func (p *Provider) Close() error {
 		p.st = newState()
 	}
 	p.aead = nil
+	clear(p.macKey)
+	p.macKey = nil
 	return nil
 }
 
@@ -610,6 +644,10 @@ func (p *Provider) RotateRootKey(ctx context.Context, next RootKeySource) error 
 	if err != nil {
 		return err
 	}
+	newMACKey, err := deriveStateMACKey(root)
+	if err != nil {
+		return err
+	}
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -629,8 +667,17 @@ func (p *Provider) RotateRootKey(ctx context.Context, next RootKeySource) error 
 		return fmt.Errorf("local: encoding the keyring: %w", err)
 	}
 	defer clear(payload)
-	nextGen, err := p.nextGeneration(gen)
+	f, err := p.loadBackup()
 	if err != nil {
+		st.wipe()
+		return err
+	}
+	nextGen := max(gen, f.Highest) + 1
+	// Authenticate the backup state under both root keys before the keyring
+	// changes hands, so that whichever keyring a crash leaves, its root key
+	// opens the state.
+	oldKey, newKey := stateKey{id: p.rootID, mac: p.macKey}, stateKey{id: id, mac: newMACKey}
+	if err := p.saveBackupUnder(f, oldKey, newKey); err != nil {
 		st.wipe()
 		return err
 	}
@@ -639,13 +686,15 @@ func (p *Provider) RotateRootKey(ctx context.Context, next RootKeySource) error 
 		st.wipe()
 		return err
 	}
-	if err := p.notePersisted(nextGen); err != nil {
+	f.Highest = max(f.Highest, nextGen)
+	if err := p.saveBackupUnder(f, newKey); err != nil {
 		st.wipe()
 		return err
 	}
 	p.st.wipe()
 	p.st, p.gen = st, nextGen
-	p.aead, p.rootID, p.root = newAEAD, id, next
+	clear(p.macKey)
+	p.aead, p.macKey, p.rootID, p.root = newAEAD, newMACKey, id, next
 	return nil
 }
 

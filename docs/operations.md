@@ -134,6 +134,22 @@ in-memory copy until it restarts. Without it, a keyring older than one this host
 is refused with `ErrKeyringRolledBack`, naming both generations, so that a stale
 copy is never used by mistake.
 
+The highest generation this host has seen is kept beside the keyring in
+`keyring.kf.backup`, authenticated under a key derived from the root key, so it
+cannot be edited or forged without the root key. Removing it does not switch
+the check off: a keyring past generation 1 with no such file is refused with
+`ErrBackupStateMissing`, and one that does not authenticate with
+`ErrCorruptBackupState`. Moving a keyring to a new host without that file, or
+replacing a damaged one, therefore also needs `AcceptRollback: true` once. The
+check cannot tell an older keyring restored together with its own older state
+file from the real thing; keep the keys directory writable only by the service.
+
+**Upgrading from a version that did not authenticate the state file.** The
+first open after the upgrade fails with `ErrUnauthenticatedBackupState`. Confirm
+the keyring on disk is the one you expect (`keyforge keyring inspect`), then open
+once with `AcceptRollback: true`; the existing high-water mark and backup
+acknowledgement are kept and the file is rewritten authenticated.
+
 **What a restore loses.** The registry holds data keys. Any data key created
 after the registry backup is not in it, and data encrypted under such a key
 cannot be decrypted. Back up the registry as often as you can afford to lose

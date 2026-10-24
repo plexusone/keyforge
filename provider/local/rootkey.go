@@ -153,6 +153,19 @@ const (
 	derivedKeyBytes = 32
 )
 
+// deriveStateMACKey returns the key that authenticates the backup state,
+// derived with HKDF-SHA-256 under its own context string.
+func deriveStateMACKey(root []byte) ([]byte, error) {
+	if len(root) != RootKeySize {
+		return nil, ErrBadRootKey
+	}
+	k, err := hkdf.Key(sha256.New, root, nil, infoBackupStateMAC, derivedKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("local: deriving the backup state key: %w", err)
+	}
+	return k, nil
+}
+
 // deriveKeys returns the key that encrypts the keyring and the non-secret
 // identifier of the root key, both derived with HKDF-SHA-256 under distinct
 // context strings so neither reveals the other or the root key.
