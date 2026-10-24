@@ -33,6 +33,7 @@ const (
 	DefaultRetirementDelay = 30 * 24 * time.Hour
 	// DefaultRetainVersions is how many versions are never retired: the active
 	// one and the most recent decrypt-only one, which is the rollback margin.
+	// It is also the minimum [Policy.Validate] accepts.
 	DefaultRetainVersions = 2
 )
 
@@ -58,7 +59,9 @@ type Policy struct {
 	// RetainVersions is the floor on how many versions are kept: the active
 	// version and the most recent decrypt-only ones up to this count are never
 	// retired, even when nothing references them. It is a floor on retention,
-	// never a trigger to delete.
+	// never a trigger to delete. It must be at least 2, so the previous version
+	// always remains as the rollback margin; only N-2 and older are retired.
+	// A compromised version is not counted and can be retired at any time.
 	RetainVersions int
 	// RequireBackup makes rotation wait until the keyring's backup has been
 	// acknowledged as current, so that restoring it cannot lose data wrapped
@@ -92,8 +95,8 @@ func (p Policy) Validate() error {
 	if p.RetirementDelay <= 0 {
 		errs = append(errs, errors.New("retirement delay must be positive"))
 	}
-	if p.RetainVersions < 1 {
-		errs = append(errs, errors.New("retained versions must be at least 1"))
+	if p.RetainVersions < DefaultRetainVersions {
+		errs = append(errs, fmt.Errorf("retained versions must be at least %d: the active version and the previous one", DefaultRetainVersions))
 	}
 	return errors.Join(errs...)
 }

@@ -157,7 +157,9 @@ func TestEmergencyDoesNotWaitForABackup(t *testing.T) {
 }
 
 func TestCompromisedOlderVersionIsMovedWithoutAnotherRotation(t *testing.T) {
-	w := newWorld(t, setup{})
+	// The floor keeps the active and previous versions, but a compromised
+	// previous version is not held by it: it is retired and destroyed at once.
+	w := newWorld(t, setup{policy: policy.Set{Default: policy.Policy{RetainVersions: 2}}})
 	w.seed(w.client(small), 6) // three data keys under version 1
 	first, err := w.rot.RotateKEK(bg, purpose)
 	if err != nil {
@@ -176,6 +178,9 @@ func TestCompromisedOlderVersionIsMovedWithoutAnotherRotation(t *testing.T) {
 	}
 	if kv, _ := w.store.ActiveKEK(bg, purpose); kv.Version != first.To {
 		t.Fatalf("the active version changed to %d, want %d", kv.Version, first.To)
+	}
+	if got := w.versions()[1]; got != registry.VersionDestroyed {
+		t.Fatalf("the compromised previous version is %s, want destroyed despite the floor of 2", got)
 	}
 }
 

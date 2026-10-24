@@ -500,7 +500,7 @@ per-purpose overrides; a field a purpose leaves unset inherits.
 | `dekMaxAge` | 90 days | How long a data key epoch is current |
 | `dekMaxEncryptions` | 2³⁰ | Cap on encryptions per data key |
 | `retirementDelay` | 30 days | Wait between a request to retire a version and its retirement |
-| `retainVersions` | 2 | Floor on versions kept: the active one and the most recent decrypt-only ones |
+| `retainVersions` | 2 | Floor on versions kept: the active one and the most recent decrypt-only ones. At least 2; a lower value is rejected |
 | `requireBackup` | false | Rotation waits until the keyring backup is acknowledged as current |
 
 - **A purpose can only tighten `requireBackup`**: it can ask for a backup the
@@ -552,13 +552,15 @@ per-purpose overrides; a field a purpose leaves unset inherits.
 
 ### Retained versions
 
-- **Policy keeps the last two versions.** `retain_versions` defaults to 2: the
-  active version and the most recent `decrypt-only` version are never
-  retired, even when nothing references the latter. It stays usable for
-  rollback: if the active version turns out to be bad (a provider fault, a
-  wrong configuration), the previous one is reactivated (see
-  [Transitions](#transitions)) and nothing needs recovering. Counting by state
-  rather than by number keeps the rule well defined after a rollback.
+- **Policy keeps the last two versions.** `retain_versions` defaults to 2,
+  and validation rejects anything lower: the active version and the most
+  recent `decrypt-only` version are never retired, even when nothing
+  references the latter. It stays usable for rollback: if the active version
+  turns out to be bad (a provider fault, a wrong configuration), the previous
+  one is reactivated (see [Transitions](#transitions)) and nothing needs
+  recovering. Counting by state rather than by number keeps the rule well
+  defined after a rollback. A `compromised` version is not counted: the
+  emergency path retires it whatever the floor.
 - **Older versions (N-2 and below) become eligible for retirement only when
   all of these hold:** no DEK record or tracked object references them; the
   retirement delay has passed; no hold covers data they protect; and the

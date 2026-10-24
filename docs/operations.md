@@ -33,7 +33,7 @@ Policy is set per purpose through `embedded.Options.Policy`:
 | `DEKMaxAge` | 90 days | How long a data key epoch takes writes |
 | `DEKMaxEncryptions` | 2³⁰ | Encryptions per data key |
 | `RetirementDelay` | 30 days | Wait between asking to retire a version and doing it |
-| `RetainVersions` | 2 | Versions never retired: the active one and the newest decrypt-only |
+| `RetainVersions` | 2 | Versions never retired: the active one and the newest decrypt-only. At least 2, so the previous version remains as the rollback margin |
 | `RequireBackup` | off | Rotation waits for the keyring backup to be acknowledged |
 
 The retirement delay must be at least ten times the client cache TTL, so that a

@@ -83,7 +83,7 @@ func newWorld(t *testing.T, g guard.Guard) *world {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pol := policy.Set{Default: policy.Policy{KEKInterval: 30 * day, RetainVersions: 1, RetirementDelay: 7 * day}}
+	pol := policy.Set{Default: policy.Policy{KEKInterval: 30 * day, RetainVersions: 2, RetirementDelay: 7 * day}}
 	rot, err := rotate.New(rotate.Options{
 		Store: w.store, Providers: []provider.Provider{prov}, Policy: pol, Clock: w.clock,
 		Audit: &audit.Recorder{}, Guard: g, Epochs: w.client,
@@ -267,6 +267,9 @@ func TestRetirementCommands(t *testing.T) {
 		}
 		return o
 	}
+	// Two rotations make version 1 N-2, outside the floor that keeps the
+	// active and previous versions.
+	mustRun("rotate", "orders")
 	mustRun("rotate", "orders")
 	mustRun("rewrap", "orders")
 
@@ -295,7 +298,7 @@ func TestADenialIsShownAndExitsNonZero(t *testing.T) {
 	w := newWorld(t, g)
 	w.seed(4)
 	kek := w.kek.ID.String()
-	for _, a := range [][]string{{"rotate", "orders"}, {"rewrap", "orders"}, {"retire", "request", kek, "1"}} {
+	for _, a := range [][]string{{"rotate", "orders"}, {"rotate", "orders"}, {"rewrap", "orders"}, {"retire", "request", kek, "1"}} {
 		if _, err := run(t, inProcess(w), a...); err != nil {
 			t.Fatalf("%v: %v", a, err)
 		}

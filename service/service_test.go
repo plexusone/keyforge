@@ -401,15 +401,22 @@ func TestRollbackWithNothingToReturnTo(t *testing.T) {
 }
 
 func TestRetirementOverHTTP(t *testing.T) {
-	pol := policy.Set{Default: policy.Policy{RetainVersions: 1, RetirementDelay: 7 * day}}
+	pol := policy.Set{Default: policy.Policy{RetainVersions: 2, RetirementDelay: 7 * day}}
 	f := newFixture(t, fixtureOpts{pol: pol, g: guard.AllowAll()})
 	f.seed(4)
+	// Two rotations make version 1 N-2, outside the floor that keeps the
+	// active and previous versions.
+	f.do("POST", "/v1/purposes/orders/rotate", nil)
 	f.do("POST", "/v1/purposes/orders/rotate", nil)
 	f.do("POST", "/v1/purposes/orders/rewrap", nil)
 
 	// A version that is not decrypt-only cannot be put forward.
-	if r := f.do("POST", f.kekPath(2, "retire"), nil); r.code != 409 || errCode(r) != "invalid_state" {
+	if r := f.do("POST", f.kekPath(3, "retire"), nil); r.code != 409 || errCode(r) != "invalid_state" {
 		t.Fatalf("retiring the active version = %d %q", r.code, errCode(r))
+	}
+	// The previous version is the rollback margin and stays within the floor.
+	if r := f.do("POST", f.kekPath(2, "retire"), nil); r.code != 409 || errCode(r) != "not_eligible" {
+		t.Fatalf("retiring the previous version = %d %q", r.code, errCode(r))
 	}
 	if r := f.do("POST", f.kekPath(1, "retire"), nil); r.code != 200 || r.body["state"] != "retire-requested" {
 		t.Fatalf("request = %d %v", r.code, r.body)
@@ -430,7 +437,7 @@ func TestRetirementOverHTTP(t *testing.T) {
 }
 
 func TestGuardAnswersMapToStatuses(t *testing.T) {
-	pol := policy.Set{Default: policy.Policy{RetainVersions: 1, RetirementDelay: 7 * day}}
+	pol := policy.Set{Default: policy.Policy{RetainVersions: 2, RetirementDelay: 7 * day}}
 	answers := []guard.Decision{guard.AwaitApproval("ticket 7"), guard.Deny("legal hold")}
 	i := 0
 	g := guard.Func(func(context.Context, guard.Request) (guard.Decision, error) {
@@ -440,6 +447,9 @@ func TestGuardAnswersMapToStatuses(t *testing.T) {
 	})
 	f := newFixture(t, fixtureOpts{pol: pol, g: g})
 	f.seed(4)
+	// Two rotations make version 1 N-2, outside the floor that keeps the
+	// active and previous versions.
+	f.do("POST", "/v1/purposes/orders/rotate", nil)
 	f.do("POST", "/v1/purposes/orders/rotate", nil)
 	f.do("POST", "/v1/purposes/orders/rewrap", nil)
 	f.do("POST", f.kekPath(1, "retire"), nil)
@@ -456,9 +466,12 @@ func TestGuardAnswersMapToStatuses(t *testing.T) {
 }
 
 func TestCancelRetirement(t *testing.T) {
-	pol := policy.Set{Default: policy.Policy{RetainVersions: 1}}
+	pol := policy.Set{Default: policy.Policy{RetainVersions: 2}}
 	f := newFixture(t, fixtureOpts{pol: pol, g: guard.AllowAll()})
 	f.seed(2)
+	// Two rotations make version 1 N-2, outside the floor that keeps the
+	// active and previous versions.
+	f.do("POST", "/v1/purposes/orders/rotate", nil)
 	f.do("POST", "/v1/purposes/orders/rotate", nil)
 	f.do("POST", "/v1/purposes/orders/rewrap", nil)
 	f.do("POST", f.kekPath(1, "retire"), nil)
