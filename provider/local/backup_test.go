@@ -2,8 +2,10 @@ package local
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 	"time"
@@ -301,5 +303,186 @@ func TestOlderKeyringPutInPlaceWhileRunningIsRefused(t *testing.T) {
 	// And it is still refused when opened, rather than laundered.
 	if _, err := Open(bg, opts); !errors.Is(err, ErrKeyringRolledBack) {
 		t.Fatalf("Open = %v, want ErrKeyringRolledBack", err)
+	}
+}
+
+// staleCopy returns a keyring at generation 2 and leaves the live keyring at
+// generation 3, with the provider closed: the setup for a restore of a copy
+// taken before a rotation.
+func staleCopy(t *testing.T, opts Options) []byte {
+	t.Helper()
+	p := mustCreate(t, opts)
+	ref := newKey(t, p)
+	old, err := os.ReadFile(opts.Path) // generation 2
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.Rotate(bg, ref); err != nil { // generation 3
+		t.Fatal(err)
+	}
+	p.Close()
+	return old
+}
+
+func restore(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.WriteFile(path, data, 0o600); err != nil { //nolint:gosec // G703: the path is a test temp directory
+		t.Fatal(err)
+	}
+}
+
+// Deleting the backup state must not switch rollback detection off.
+func TestDeletedBackupStateDoesNotHideARollback(t *testing.T) {
+	opts := newOpts(t, 1)
+	old := staleCopy(t, opts)
+	restore(t, opts.Path, old)
+	if err := os.Remove(opts.Path + ".backup"); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := Open(bg, opts); !errors.Is(err, ErrBackupStateMissing) {
+		t.Fatalf("Open = %v, want ErrBackupStateMissing", err)
+	}
+
+	// An operator who intended it says so; the state is written again and the
+	// next open needs no acknowledgement.
+	accept := opts
+	accept.AcceptRollback = true
+	r, err := Open(bg, accept)
+	if err != nil {
+		t.Fatalf("Open with AcceptRollback: %v", err)
+	}
+	r.Close()
+	r, err = Open(bg, opts)
+	if err != nil {
+		t.Fatalf("Open after the state was rewritten: %v", err)
+	}
+	r.Close()
+}
+
+// A crash between creating a keyring and writing its state leaves a keyring at
+// generation 1 and no state; that must still open.
+func TestMissingBackupStateAtGenerationOneOpens(t *testing.T) {
+	opts := newOpts(t, 1)
+	p := mustCreate(t, opts)
+	p.Close()
+	if err := os.Remove(opts.Path + ".backup"); err != nil {
+		t.Fatal(err)
+	}
+	r, err := Open(bg, opts)
+	if err != nil {
+		t.Fatalf("Open = %v", err)
+	}
+	r.Close()
+}
+
+// Editing the high-water mark down must not make an older keyring acceptable.
+func TestEditedBackupStateIsRefused(t *testing.T) {
+	opts := newOpts(t, 1)
+	old := staleCopy(t, opts)
+	restore(t, opts.Path, old)
+
+	b, err := os.ReadFile(opts.Path + ".backup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var env backupEnvelope
+	if err := json.Unmarshal(b, &env); err != nil {
+		t.Fatal(err)
+	}
+	env.State = bytes.Replace(env.State, []byte(`"highestGeneration":3`), []byte(`"highestGeneration":2`), 1)
+	if b, err = json.Marshal(env); err != nil {
+		t.Fatal(err)
+	}
+	restore(t, opts.Path+".backup", b)
+
+	if _, err := Open(bg, opts); !errors.Is(err, ErrCorruptBackupState) {
+		t.Fatalf("Open = %v, want ErrCorruptBackupState", err)
+	}
+}
+
+// A state file in the unauthenticated format, forged or left by an older
+// version, is not trusted without an acknowledgement.
+func TestUnauthenticatedBackupStateNeedsAcknowledgement(t *testing.T) {
+	opts := newOpts(t, 1)
+	old := staleCopy(t, opts)
+	restore(t, opts.Path, old)
+	legacy := []byte(`{"format":1,"highestGeneration":2,"acknowledgedGeneration":2,"note":"offsite"}`)
+	restore(t, opts.Path+".backup", legacy)
+
+	if _, err := Open(bg, opts); !errors.Is(err, ErrUnauthenticatedBackupState) {
+		t.Fatalf("Open = %v, want ErrUnauthenticatedBackupState", err)
+	}
+
+	accept := opts
+	accept.AcceptRollback = true
+	r, err := Open(bg, accept)
+	if err != nil {
+		t.Fatalf("Open with AcceptRollback: %v", err)
+	}
+	st, err := r.BackupStatus(bg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Acknowledged != 2 || st.Note != "offsite" {
+		t.Fatalf("status = %+v, want the acknowledgement kept", st)
+	}
+	r.Close()
+
+	r, err = Open(bg, opts)
+	if err != nil {
+		t.Fatalf("Open after the state was authenticated: %v", err)
+	}
+	r.Close()
+}
+
+// The state of one keyring cannot stand in for another's under the same root
+// key.
+func TestBackupStateIsBoundToItsKeyring(t *testing.T) {
+	opts := newOpts(t, 1)
+	staleCopy(t, opts) // generation 3, state at 3
+
+	other := opts
+	other.Path = filepath.Join(filepath.Dir(opts.Path), "other.kf")
+	o := mustCreate(t, other) // generation 1, state at 1
+	o.Close()
+
+	b, err := os.ReadFile(other.Path + ".backup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	restore(t, opts.Path+".backup", b)
+	if _, err := Open(bg, opts); !errors.Is(err, ErrCorruptBackupState) {
+		t.Fatalf("Open = %v, want ErrCorruptBackupState", err)
+	}
+}
+
+// A crash during root key rotation leaves state that the root key of
+// whichever keyring survived authenticates.
+func TestRootKeyRotationCrashKeepsStateReadable(t *testing.T) {
+	for _, tc := range []struct {
+		stage string
+		root  RootKeySource
+	}{
+		{"temp-synced", testRoot(1)}, // before the rename: the old keyring remains
+		{"renamed", testRoot(50)},    // after it: the new keyring is in place
+	} {
+		t.Run(tc.stage, func(t *testing.T) {
+			opts := newOpts(t, 1)
+			p := mustCreate(t, opts)
+			newKey(t, p) // generation 2, so a missing or unreadable state would be refused
+			p.hook = crashAt(tc.stage)
+			if err := p.RotateRootKey(bg, testRoot(50)); !errors.Is(err, errSimulatedCrash) {
+				t.Fatalf("RotateRootKey = %v, want the simulated crash", err)
+			}
+			p.Close()
+
+			opts.Root = tc.root
+			r, err := Open(bg, opts)
+			if err != nil {
+				t.Fatalf("Open after a crash at %s: %v", tc.stage, err)
+			}
+			r.Close()
+		})
 	}
 }

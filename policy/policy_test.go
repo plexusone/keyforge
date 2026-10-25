@@ -37,7 +37,9 @@ func TestValidate(t *testing.T) {
 		{"cap above the limit", func(p *policy.Policy) { p.DEKMaxEncryptions = keyforge.MaxEncryptionCap + 1 }, "encryption cap"},
 		{"no delay", func(p *policy.Policy) { p.RetirementDelay = 0 }, "retirement delay"},
 		{"retain nothing", func(p *policy.Policy) { p.RetainVersions = 0 }, "retained versions"},
-		{"retain one", func(p *policy.Policy) { p.RetainVersions = 1 }, ""},
+		{"retain only the active version", func(p *policy.Policy) { p.RetainVersions = 1 }, "at least 2"},
+		{"retain the active and previous versions", func(p *policy.Policy) { p.RetainVersions = 2 }, ""},
+		{"retain three", func(p *policy.Policy) { p.RetainVersions = 3 }, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -104,6 +106,13 @@ func TestSetValidate(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error %q does not mention %q", err, want)
 		}
+	}
+
+	// A per-purpose override cannot lower the floor below the previous version.
+	lowered := policy.Set{Purposes: map[keyforge.Purpose]policy.Policy{"orders": {RetainVersions: 1}}}
+	if err := lowered.Validate(0); err == nil || !strings.Contains(err.Error(), `purpose "orders"`) ||
+		!strings.Contains(err.Error(), "retained versions must be at least 2") {
+		t.Fatalf("Validate = %v, want the override of 1 refused", err)
 	}
 
 	// With the cache TTL unknown the delay check is skipped.

@@ -184,26 +184,33 @@ func TestOverdueRotationIsAProblem(t *testing.T) {
 }
 
 func TestVersionsShowRetirability(t *testing.T) {
-	pol := policy.Set{Default: policy.Policy{KEKInterval: 30 * day, RetainVersions: 1}}
+	pol := policy.Set{Default: policy.Policy{KEKInterval: 30 * day, RetainVersions: 2}}
 	w := newWorld(t, providermemory.NewKeyring(), pol)
 	w.seed(4)
 	rot := w.rotator()
-	if _, err := rot.RotateKEK(bg, purpose); err != nil {
-		t.Fatal(err)
+	// Two rotations make version 1 N-2, outside the floor of the active and
+	// previous versions.
+	for range 2 {
+		if _, err := rot.RotateKEK(bg, purpose); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	v := w.reporter(nil).Report(bg).Purposes[0].Versions
-	if len(v) != 2 || v[0].State != "decrypt-only" || v[0].References != 2 || v[0].Retirable {
+	if len(v) != 3 || v[0].State != "decrypt-only" || v[0].References != 2 || v[0].Retirable {
 		t.Fatalf("Versions = %+v, want version 1 referenced and not retirable", v)
 	}
 	if len(v[0].Reasons) == 0 || strings.Contains(strings.Join(v[0].Reasons, " "), "wrapped under it") == false {
 		t.Fatalf("Reasons = %v, want the reference named", v[0].Reasons)
 	}
+	if v[1].State != "decrypt-only" || v[1].Retirable || !strings.Contains(strings.Join(v[1].Reasons, " "), "floor") {
+		t.Fatalf("version 2 = %+v, want it held by the floor as the rollback margin", v[1])
+	}
 	if _, err := rot.Rewrap(bg, w.kek.ID, 1, rotate.RewrapOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	v = w.reporter(nil).Report(bg).Purposes[0].Versions
-	if !v[0].Retirable || v[0].References != 0 || v[1].State != "active" || v[1].ActivatedAt.IsZero() {
+	if !v[0].Retirable || v[0].References != 0 || v[1].Retirable || v[2].State != "active" || v[2].ActivatedAt.IsZero() {
 		t.Fatalf("after the re-wrap: %+v", v)
 	}
 }

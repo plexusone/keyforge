@@ -94,8 +94,11 @@ type Options struct {
 	// AcceptRollback opens a keyring that is older than one this host has
 	// seen, which is what restoring from backup produces. Without it, Open
 	// fails with [local.ErrKeyringRolledBack] naming both generations, so a
-	// stale copy is never used by mistake. Set it only after confirming that
-	// the restore was intended.
+	// stale copy is never used by mistake. It is also needed once when the
+	// keyring's backup state file is missing past generation 1 or was written
+	// by an older version that did not authenticate it
+	// ([local.ErrBackupStateMissing], [local.ErrUnauthenticatedBackupState]).
+	// Set it only after confirming that the restore was intended.
 	AcceptRollback bool
 	// Purposes lists the purposes to manage. Each gets a KEK on first start.
 	// Required.

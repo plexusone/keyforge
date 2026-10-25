@@ -33,7 +33,7 @@ Policy is set per purpose through `embedded.Options.Policy`:
 | `DEKMaxAge` | 90 days | How long a data key epoch takes writes |
 | `DEKMaxEncryptions` | 2³⁰ | Encryptions per data key |
 | `RetirementDelay` | 30 days | Wait between asking to retire a version and doing it |
-| `RetainVersions` | 2 | Versions never retired: the active one and the newest decrypt-only |
+| `RetainVersions` | 2 | Versions never retired: the active one and the newest decrypt-only. At least 2, so the previous version remains as the rollback margin |
 | `RequireBackup` | off | Rotation waits for the keyring backup to be acknowledged |
 
 The retirement delay must be at least ten times the client cache TTL, so that a
@@ -133,6 +133,22 @@ under a running process is refused at the next write, but the process keeps its
 in-memory copy until it restarts. Without it, a keyring older than one this host has seen
 is refused with `ErrKeyringRolledBack`, naming both generations, so that a stale
 copy is never used by mistake.
+
+The highest generation this host has seen is kept beside the keyring in
+`keyring.kf.backup`, authenticated under a key derived from the root key, so it
+cannot be edited or forged without the root key. Removing it does not switch
+the check off: a keyring past generation 1 with no such file is refused with
+`ErrBackupStateMissing`, and one that does not authenticate with
+`ErrCorruptBackupState`. Moving a keyring to a new host without that file, or
+replacing a damaged one, therefore also needs `AcceptRollback: true` once. The
+check cannot tell an older keyring restored together with its own older state
+file from the real thing; keep the keys directory writable only by the service.
+
+**Upgrading from a version that did not authenticate the state file.** The
+first open after the upgrade fails with `ErrUnauthenticatedBackupState`. Confirm
+the keyring on disk is the one you expect (`keyforge keyring inspect`), then open
+once with `AcceptRollback: true`; the existing high-water mark and backup
+acknowledgement are kept and the file is rewritten authenticated.
 
 **What a restore loses.** The registry holds data keys. Any data key created
 after the registry backup is not in it, and data encrypted under such a key

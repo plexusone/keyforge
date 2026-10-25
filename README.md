@@ -28,8 +28,8 @@ Encryption and signing key lifecycle for Go applications: envelope
 encryption, automatic rotation without re-encrypting stored data, and
 controlled retirement and destruction.
 
-> **Status:** pre-release (v0.1.0 in preparation), not externally audited, and
-> not ready for production use. The envelope format is not frozen until v0.1.0.
+> **Status:** pre-release (v0.2.0), not externally audited, and not ready for
+> production use. The envelope format is frozen from v0.1.0.
 > See the [threat model](docs/threat-model.md) for what it defends and where it
 > stops.
 
@@ -105,7 +105,7 @@ operating-system differences, and a test enforces it.
 - [Product requirements](docs/specs/initiatives/INIT-KEYFORGE-001/PRD.md)
 - [Technical requirements](docs/specs/initiatives/INIT-KEYFORGE-001/TRD.md)
 - [Plan](docs/specs/initiatives/INIT-KEYFORGE-001/PLAN.md) and [roadmap](docs/specs/initiatives/INIT-KEYFORGE-001/ROADMAP.md)
-- [Release notes](docs/releases/v0.1.0.md) and [changelog](CHANGELOG.md)
+- [Release notes](docs/releases/v0.2.0.md) and [changelog](CHANGELOG.md)
 - [Security policy](SECURITY.md)
 
 ## License

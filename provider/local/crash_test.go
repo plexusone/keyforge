@@ -167,6 +167,10 @@ func TestCrashBetweenKeyringAndBackupStateIsNotARollback(t *testing.T) {
 	opts := newOpts(t, 1)
 	p := mustCreate(t, opts)
 	ref := newKey(t, p)
+	data, err := os.ReadFile(opts.Path + ".backup") // backup state at 2
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := p.Rotate(bg, ref); err != nil { // generation 3, backup state at 3
 		t.Fatal(err)
 	}
@@ -174,7 +178,6 @@ func TestCrashBetweenKeyringAndBackupStateIsNotARollback(t *testing.T) {
 
 	// Put the backup state back to what it would be had the crash happened
 	// after the keyring write and before the state write.
-	data := []byte(`{"format":1,"highestGeneration":2,"acknowledgedGeneration":0}`)
 	if err := os.WriteFile(opts.Path+".backup", data, 0o600); err != nil { //nolint:gosec // G703: the path is a test temp directory
 		t.Fatal(err)
 	}

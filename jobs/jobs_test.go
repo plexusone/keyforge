@@ -329,7 +329,7 @@ func TestReplicasStartTheSameRun(t *testing.T) {
 }
 
 func TestRetirementAndDestructionRunOverTicks(t *testing.T) {
-	pol := policy.Set{Default: policy.Policy{KEKInterval: 30 * day, RetirementDelay: 7 * day, RetainVersions: 1}}
+	pol := policy.Set{Default: policy.Policy{KEKInterval: 30 * day, RetirementDelay: 7 * day, RetainVersions: 2}}
 	w := newWorld(t, pol, guard.AllowAll())
 	w.seed(4)
 	e := w.embedded("", nil)
@@ -354,7 +354,14 @@ func TestRetirementAndDestructionRunOverTicks(t *testing.T) {
 
 	w.clock.Advance(31 * day)
 	step(jobs.RotateKEK)
-	step(jobs.RequestRetirement) // version 1 is outside a floor of one, and drained
+	// Version 1 is now the previous version, the rollback margin, which the
+	// floor of two keeps: nothing is due until the next rotation.
+	if res := mustTick(t, e); len(res.Started) != 0 {
+		t.Fatalf("a tick with version 1 inside the floor started %v", kinds(res))
+	}
+	w.clock.Advance(31 * day)
+	step(jobs.RotateKEK)
+	step(jobs.RequestRetirement) // version 1 is now N-2, outside the floor, and drained
 	if got := w.states()[1]; got != registry.VersionRetireRequested {
 		t.Fatalf("version 1 is %s", got)
 	}
@@ -378,7 +385,7 @@ func TestRetirementAndDestructionRunOverTicks(t *testing.T) {
 }
 
 func TestAPendingGuardIsAskedAgainOnlyAfterTheRecheck(t *testing.T) {
-	pol := policy.Set{Default: policy.Policy{KEKInterval: 30 * day, RetirementDelay: 7 * day, RetainVersions: 1}}
+	pol := policy.Set{Default: policy.Policy{KEKInterval: 30 * day, RetirementDelay: 7 * day, RetainVersions: 2}}
 	asked := 0
 	answers := []guard.Decision{guard.AwaitApproval("ticket 41"), guard.AwaitApproval("ticket 41"), guard.Allow(), guard.Allow()}
 	g := guard.Func(func(context.Context, guard.Request) (guard.Decision, error) {
@@ -391,14 +398,19 @@ func TestAPendingGuardIsAskedAgainOnlyAfterTheRecheck(t *testing.T) {
 	e := w.embedded("", func(o *jobs.EmbeddedOptions) { o.Recheck = 10 * time.Minute })
 	w.run(e)
 
+	// Rotate twice so version 1 is N-2, outside the floor of two, then request
+	// its retirement.
+	w.clock.Advance(31 * day)
+	res := mustTick(t, e)
+	settle(t, e, res.Started)
 	w.clock.Advance(31 * day)
 	for range 2 { // rotate, then request retirement
-		res := mustTick(t, e)
+		res = mustTick(t, e)
 		settle(t, e, res.Started)
 	}
 	w.clock.Advance(8 * day)
 
-	res := mustTick(t, e)
+	res = mustTick(t, e)
 	settle(t, e, res.Started)
 	if asked != 1 || w.states()[1] != registry.VersionRetireRequested {
 		t.Fatalf("after the first pass: asked %d, version 1 is %s", asked, w.states()[1])

@@ -27,7 +27,7 @@ the data keys protect, and the ability to destroy keys.
 | Asset | Threat | Mitigation |
 |---|---|---|
 | Key-encryption key material | Read from disk or backup | Sealed under a root key held apart from the keyring; keyring mode 0600, group- or other-readable refused; a root key file beside the keyring refused |
-| Key-encryption key material | Wrong or stale keyring used | A wrong root key is refused before decryption; a keyring older than one seen is refused unless the restore is accepted |
+| Key-encryption key material | Wrong or stale keyring used | A wrong root key is refused before decryption; a keyring older than one seen is refused unless the restore is accepted; the high-water mark is authenticated under the root key and a missing one is refused past generation 1 |
 | Data key material | Memory read | Bounded cache with a TTL; best-effort zeroing |
 | Ciphertext | Moved between purposes, subjects or records | AAD binds the purpose and the caller's context; the wrapped key is bound to its purpose, subject and identity |
 | Ciphertext | Tampering | AES-256-GCM authentication |
@@ -67,6 +67,11 @@ the set and never widen it. The code stays valid under
   restoring an older registry resurrects the subject's keys, and a keyring
   backup holds destroyed versions' material. Erasure is complete for the live
   system only.
+- **A matched restore of keyring and state file is not detected.** The
+  high-water mark lives beside the keyring. Someone who can write the keys
+  directory and holds an older copy of both the keyring and its state file can
+  put them back together; detecting that needs state kept somewhere they cannot
+  write.
 - **A restore under a running process.** An older keyring copy put in place
   while the process runs is refused at the next write and at the next open, but
   the process keeps using its in-memory copy until restarted. Stop the process
