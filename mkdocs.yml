@@ -60,6 +60,7 @@ nav:
       - Plan: specs/initiatives/INIT-KEYFORGE-001/PLAN.md
       - Roadmap: specs/initiatives/INIT-KEYFORGE-001/ROADMAP.md
   - Releases:
+      - v0.2.0: releases/v0.2.0.md
       - v0.1.0: releases/v0.1.0.md
 
 extra:
