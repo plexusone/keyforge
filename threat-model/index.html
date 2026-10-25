@@ -795,6 +795,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../releases/v0.2.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../releases/v0.1.0/" class="md-nav__link">
         
   
@@ -993,7 +1021,7 @@ the data keys protect, and the ability to destroy keys.</p>
 <tr>
 <td>Key-encryption key material</td>
 <td>Wrong or stale keyring used</td>
-<td>A wrong root key is refused before decryption; a keyring older than one seen is refused unless the restore is accepted</td>
+<td>A wrong root key is refused before decryption; a keyring older than one seen is refused unless the restore is accepted; the high-water mark is authenticated under the root key and a missing one is refused past generation 1</td>
 </tr>
 <tr>
 <td>Data key material</td>
@@ -1073,6 +1101,11 @@ the set and never widen it. The code stays valid under
   restoring an older registry resurrects the subject's keys, and a keyring
   backup holds destroyed versions' material. Erasure is complete for the live
   system only.</li>
+<li><strong>A matched restore of keyring and state file is not detected.</strong> The
+  high-water mark lives beside the keyring. Someone who can write the keys
+  directory and holds an older copy of both the keyring and its state file can
+  put them back together; detecting that needs state kept somewhere they cannot
+  write.</li>
 <li><strong>A restore under a running process.</strong> An older keyring copy put in place
   while the process runs is refused at the next write and at the next open, but
   the process keeps using its in-memory copy until restarted. Stop the process

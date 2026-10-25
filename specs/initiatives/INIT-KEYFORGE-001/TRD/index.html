@@ -1384,6 +1384,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../../../releases/v0.2.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../../../releases/v0.1.0/" class="md-nav__link">
         
   
@@ -2822,7 +2850,7 @@ per-purpose overrides; a field a purpose leaves unset inherits.</p>
 <tr>
 <td><code>retainVersions</code></td>
 <td>2</td>
-<td>Floor on versions kept: the active one and the most recent decrypt-only ones</td>
+<td>Floor on versions kept: the active one and the most recent decrypt-only ones. At least 2; a lower value is rejected</td>
 </tr>
 <tr>
 <td><code>requireBackup</code></td>
@@ -2883,13 +2911,15 @@ per-purpose overrides; a field a purpose leaves unset inherits.</p>
 </ol>
 <h3 id="retained-versions">Retained versions<a class="headerlink" href="#retained-versions" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>Policy keeps the last two versions.</strong> <code>retain_versions</code> defaults to 2: the
-  active version and the most recent <code>decrypt-only</code> version are never
-  retired, even when nothing references the latter. It stays usable for
-  rollback: if the active version turns out to be bad (a provider fault, a
-  wrong configuration), the previous one is reactivated (see
-  <a href="#transitions">Transitions</a>) and nothing needs recovering. Counting by state
-  rather than by number keeps the rule well defined after a rollback.</li>
+<li><strong>Policy keeps the last two versions.</strong> <code>retain_versions</code> defaults to 2,
+  and validation rejects anything lower: the active version and the most
+  recent <code>decrypt-only</code> version are never retired, even when nothing
+  references the latter. It stays usable for rollback: if the active version
+  turns out to be bad (a provider fault, a wrong configuration), the previous
+  one is reactivated (see <a href="#transitions">Transitions</a>) and nothing needs
+  recovering. Counting by state rather than by number keeps the rule well
+  defined after a rollback. A <code>compromised</code> version is not counted: the
+  emergency path retires it whatever the floor.</li>
 <li><strong>Older versions (N-2 and below) become eligible for retirement only when
   all of these hold:</strong> no DEK record or tracked object references them; the
   retirement delay has passed; no hold covers data they protect; and the

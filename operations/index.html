@@ -906,6 +906,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../releases/v0.2.0/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    v0.2.0
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../releases/v0.1.0/" class="md-nav__link">
         
   
@@ -1202,7 +1230,7 @@ jobs; a person starts them.</p>
 <tr>
 <td><code>RetainVersions</code></td>
 <td>2</td>
-<td>Versions never retired: the active one and the newest decrypt-only</td>
+<td>Versions never retired: the active one and the newest decrypt-only. At least 2, so the previous version remains as the rollback margin</td>
 </tr>
 <tr>
 <td><code>RequireBackup</code></td>
@@ -1320,6 +1348,20 @@ under a running process is refused at the next write, but the process keeps its
 in-memory copy until it restarts. Without it, a keyring older than one this host has seen
 is refused with <code>ErrKeyringRolledBack</code>, naming both generations, so that a stale
 copy is never used by mistake.</p>
+<p>The highest generation this host has seen is kept beside the keyring in
+<code>keyring.kf.backup</code>, authenticated under a key derived from the root key, so it
+cannot be edited or forged without the root key. Removing it does not switch
+the check off: a keyring past generation 1 with no such file is refused with
+<code>ErrBackupStateMissing</code>, and one that does not authenticate with
+<code>ErrCorruptBackupState</code>. Moving a keyring to a new host without that file, or
+replacing a damaged one, therefore also needs <code>AcceptRollback: true</code> once. The
+check cannot tell an older keyring restored together with its own older state
+file from the real thing; keep the keys directory writable only by the service.</p>
+<p><strong>Upgrading from a version that did not authenticate the state file.</strong> The
+first open after the upgrade fails with <code>ErrUnauthenticatedBackupState</code>. Confirm
+the keyring on disk is the one you expect (<code>keyforge keyring inspect</code>), then open
+once with <code>AcceptRollback: true</code>; the existing high-water mark and backup
+acknowledgement are kept and the file is rewritten authenticated.</p>
 <p><strong>What a restore loses.</strong> The registry holds data keys. Any data key created
 after the registry backup is not in it, and data encrypted under such a key
 cannot be decrypted. Back up the registry as often as you can afford to lose
