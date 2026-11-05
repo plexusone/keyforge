@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	entgo.io/ent v0.14.6
 	github.com/grokify/oscompat v0.12.0
-	github.com/jackc/pgx/v5 v5.11.0
+	github.com/jackc/pgx/v5 v5.12.0
 	github.com/plexusone/omniworkflow v0.1.1
 	github.com/spf13/cobra v1.10.2
 	modernc.org/sqlite v1.61.1
